@@ -2,6 +2,7 @@ package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,7 +16,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun HomeScreen(
     profile: PlayerProfile,
@@ -35,23 +35,37 @@ fun HomeScreen(
                 .align(Alignment.TopStart)
                 .fillMaxWidth(),
         ) {
-            Column(Modifier.padding(start = 14.dp, top = 12.dp)) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, top = 12.dp),
+            ) {
                 PlayerProfileHud(
                     player = player,
                     onClick = onProfile,
                 )
-                HomeListNav(
-                    onSelect = { dest ->
-                        when (dest) {
-                            LobbyDest.LEADERBOARD -> onLeaderboard()
-                            LobbyDest.PROFILE -> onProfile()
-                            LobbyDest.SETTINGS -> onSettings()
-                            LobbyDest.HOME -> Unit
-                            else -> vm.select(dest)
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    HomeListNav(
+                        onSelect = { dest ->
+                            when (dest) {
+                                LobbyDest.LEADERBOARD -> onLeaderboard()
+                                LobbyDest.PROFILE -> onProfile()
+                                LobbyDest.SETTINGS -> onSettings()
+                                LobbyDest.HOME -> Unit
+                                else -> vm.select(dest)
+                            }
+                        },
+                    )
+                    ModePlayList(
+                        onPlay = onPlay,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             CategoriesBar()
         }

@@ -14,7 +14,7 @@ import studio.paras.medha.R
 private val CategoriesHeight = 100.dp
 private val CategoriesPadStart = 16.dp
 private val CategoriesPadEnd = 16.dp
-private val CategoriesPadTop = 8.dp
+private val CategoriesPadTop = 0.dp
 private val CategoriesPadBottom = 0.dp
 
 @Composable
