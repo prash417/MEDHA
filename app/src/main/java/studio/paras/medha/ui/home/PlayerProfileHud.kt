@@ -82,7 +82,7 @@ fun PlayerProfileHud(
         Row(
             Modifier
                 .fillMaxSize()
-                .padding(start = 8.dp, end = 20.dp),
+                .padding(start = 8.dp, end = 26.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
@@ -176,7 +176,9 @@ fun PlayerProfileHud(
                 painter = painterResource(RankBadges.drawableFor(player.level)),
                 contentDescription = RankBadges.labelFor(player.level),
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(50.dp),
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(42.dp),
             )
         }
     }

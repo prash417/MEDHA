@@ -159,7 +159,21 @@ fun PlayerProfile.toLobbyPlayer(): LobbyPlayer {
     )
 }
 
-fun formatCount(n: Int): String = "%,d".format(n)
+fun formatCount(n: Int): String {
+    val v = n.coerceAtLeast(0)
+    return when {
+        v < 1_000 -> v.toString()
+        v < 100_000 -> shortCount(v, 1_000, "k")
+        v < 10_000_000 -> shortCount(v, 100_000, "L")
+        else -> shortCount(v, 10_000_000, "Cr")
+    }
+}
+
+private fun shortCount(v: Int, unit: Int, suffix: String): String {
+    val whole = v / unit
+    val tenth = (v % unit) * 10 / unit
+    return if (whole >= 10 || tenth == 0) "${whole}$suffix" else "${whole}.${tenth}$suffix"
+}
 
 fun formatRemain(endsAt: Long, now: Long): String {
     val sec = ((endsAt - now) / 1000L).coerceAtLeast(0L)

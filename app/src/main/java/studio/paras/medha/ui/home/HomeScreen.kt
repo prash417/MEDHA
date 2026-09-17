@@ -69,6 +69,17 @@ fun HomeScreen(
             }
             CategoriesBar()
         }
+        TopGameHud(
+            coins = player.coins,
+            gems = player.gems,
+            onAdd = { vm.open(LobbyOverlay.VAULT) },
+            onFriends = { vm.open(LobbyOverlay.FRIENDS) },
+            onMessages = { vm.open(LobbyOverlay.MESSAGES) },
+            onSettings = onSettings,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 14.dp),
+        )
         LobbyOverlayHost(
             overlay = ui.overlay,
             catalog = ui.catalog,
