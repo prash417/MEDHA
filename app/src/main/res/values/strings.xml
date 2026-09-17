@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MEDHA</string>
+    <string name="studio_presents">PARAS STUDIOS PRESENTS</string>
+    <string name="tagline">How far can your mind take you?</string>
+    <string name="play_now">Play Now</string>
+    <string name="daily_challenge">Daily Challenge</string>
+    <string name="practice">Practice</string>
+    <string name="quick_play">Quick Play</string>
+    <string name="classic">Classic</string>
+    <string name="leaderboard">Leaderboard</string>
+    <string name="profile">Profile</string>
+    <string name="settings">Settings</string>
+    <string name="what_should_we_call_you">What should we call you?</string>
+    <string name="choose_avatar">Choose a mark</string>
+    <string name="preferred_language">Preferred language</string>
+    <string name="enter_game">Enter</string>
+    <string name="continue_label">Continue</string>
+    <string name="music">Music</string>
+    <string name="sound_effects">Sound effects</string>
+    <string name="voice">Voice</string>
+    <string name="did_you_know">Did you know?</string>
+    <string name="correct_answer">Correct answer</string>
+    <string name="why">Why?</string>
+    <string name="final_prize">Final prize</string>
+    <string name="walk_away">Leave with prize</string>
+    <string name="offline_title">You are offline</string>
+    <string name="offline_body">Practice can use cached questions. Competitive modes need a connection once Firebase is connected.</string>
+    <string name="lifeline_5050">50:50</string>
+    <string name="lifeline_audience">Audience</string>
+    <string name="lifeline_expert">Expert</string>
+    <string name="lifeline_switch">Switch</string>
+    <string name="question_cd">Question %1$d of %2$d</string>
+    <string name="option_cd">Option %1$s. %2$s</string>
+    <string name="selected_cd">Selected option %1$s</string>
+    <string name="correct_cd">Correct</string>
+    <string name="incorrect_cd">Incorrect</string>
+</resources>

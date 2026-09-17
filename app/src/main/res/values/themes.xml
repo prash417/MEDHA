@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Medha" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:navigationBarColor">@color/ink</item>
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:colorBackground">@color/ink</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <style name="Theme.Medha.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_ink</item>
+        <item name="postSplashScreenTheme">@style/Theme.Medha</item>
+        <item name="android:windowBackground">@color/splash_ink</item>
+        <item name="android:statusBarColor">@color/splash_ink</item>
+        <item name="android:navigationBarColor">@color/splash_ink</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

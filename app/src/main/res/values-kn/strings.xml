@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ಮೇಧಾ</string>
+    <string name="studio_presents">PARAS STUDIOS ಪ್ರಸ್ತುತಪಡಿಸುತ್ತದೆ</string>
+    <string name="tagline">ನಿಮ್ಮ ಬುದ್ಧಿ ನಿಮ್ಮನ್ನು ಎಷ್ಟು ದೂರ ಕೊಂಡೊಯ್ಯಬಲ್ಲದು?</string>
+    <string name="play_now">ಈಗ ಆಡಿ</string>
+    <string name="daily_challenge">ದೈನಂದಿನ ಸವಾಲು</string>
+    <string name="practice">ಅಭ್ಯಾಸ</string>
+    <string name="quick_play">ತ್ವರಿತ ಆಟ</string>
+    <string name="classic">ಕ್ಲಾಸಿಕ್</string>
+    <string name="leaderboard">ಲೀಡರ್‌ಬೋರ್ಡ್</string>
+    <string name="profile">ಪ್ರೊಫೈಲ್</string>
+    <string name="settings">ಸೆಟ್ಟಿಂಗ್‌ಗಳು</string>
+    <string name="what_should_we_call_you">ನಿಮ್ಮನ್ನು ಏನೆಂದು ಕರೆಯೋಣ?</string>
+    <string name="choose_avatar">ನಿಮ್ಮ ಚಿಹ್ನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ</string>
+    <string name="preferred_language">ಆದ್ಯತೆಯ ಭಾಷೆ</string>
+    <string name="enter_game">ಪ್ರವೇಶಿಸಿ</string>
+    <string name="continue_label">ಮುಂದುವರಿಸಿ</string>
+    <string name="music">ಸಂಗೀತ</string>
+    <string name="sound_effects">ಧ್ವನಿ ಪರಿಣಾಮಗಳು</string>
+    <string name="voice">ಧ್ವನಿ</string>
+    <string name="did_you_know">ನಿಮಗೆ ಗೊತ್ತೇ?</string>
+    <string name="correct_answer">ಸರಿಯಾದ ಉತ್ತರ</string>
+    <string name="why">ಏಕೆ?</string>
+    <string name="final_prize">ಅಂತಿಮ ಬಹುಮಾನ</string>
+    <string name="walk_away">ಬಹುಮಾನದೊಂದಿಗೆ ನಿರ್ಗಮಿಸಿ</string>
+    <string name="offline_title">ನೀವು ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿದ್ದೀರಿ</string>
+    <string name="offline_body">ಅಭ್ಯಾಸವು ಕ್ಯಾಶ್ ಮಾಡಿದ ಪ್ರಶ್ನೆಗಳನ್ನು ಬಳಸಬಹುದು.</string>
+    <string name="lifeline_5050">50:50</string>
+    <string name="lifeline_audience">ಪ್ರೇಕ್ಷಕರು</string>
+    <string name="lifeline_expert">ತಜ್ಞರು</string>
+    <string name="lifeline_switch">ಬದಲಾಯಿಸಿ</string>
+</resources>

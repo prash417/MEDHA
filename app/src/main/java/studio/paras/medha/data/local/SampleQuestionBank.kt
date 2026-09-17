@@ -1,0 +1,278 @@
+package studio.paras.medha.data.local
+
+import studio.paras.medha.domain.model.AnswerLetter
+import studio.paras.medha.domain.model.Difficulty
+import studio.paras.medha.domain.model.QuestionRecord
+
+object SampleQuestionBank {
+    val all: List<QuestionRecord> = listOf(
+        q(
+            "q01", "The city of Bengaluru is the capital of which Indian state?",
+            "Tamil Nadu", "Karnataka", "Kerala", "Andhra Pradesh",
+            AnswerLetter.B, "India", Difficulty.EASY, 0,
+            "Bengaluru (formerly Bangalore) is the capital of Karnataka and a major centre for technology and aerospace in India.",
+        ),
+        q(
+            "q02", "The Ganga is traditionally said to emerge from which glacier region?",
+            "Siachen", "Pindari", "Gangotri", "Zemu",
+            AnswerLetter.C, "Geography", Difficulty.EASY, 1,
+            "The river begins from the Gangotri glacier system in Uttarakhand, with Gomukh regarded as the primary snout.",
+        ),
+        q(
+            "q03", "Which animal is the national animal of India?",
+            "Asiatic lion", "Bengal tiger", "Indian elephant", "Snow leopard",
+            AnswerLetter.B, "Nature", Difficulty.EASY, 2,
+            "The Bengal tiger (Panthera tigris tigris) is India’s national animal, a symbol used in conservation campaigns nationwide.",
+        ),
+        q(
+            "q04", "Who wrote the English collection Gitanjali, awarded the Nobel Prize in Literature in 1913?",
+            "Sarojini Naidu", "Rabindranath Tagore", "Bankim Chandra Chatterjee", "Mulk Raj Anand",
+            AnswerLetter.B, "Literature", Difficulty.MEDIUM, 3,
+            "Tagore’s Gitanjali (Song Offerings) introduced his lyric poetry to a global readership and made him the first non-European Nobel laureate in literature.",
+        ),
+        q(
+            "q05", "Rakesh Sharma is remembered in Indian history as the first Indian to do what?",
+            "Summit Kangchenjunga", "Pilot a supersonic jet", "Travel to space", "Cross the Atlantic solo",
+            AnswerLetter.C, "Science", Difficulty.MEDIUM, 4,
+            "In 1984 Sharma flew aboard Soyuz T-11 to the Salyut 7 station, becoming the first Indian in space.",
+        ),
+        q(
+            "q06", "The Chipko movement is most closely associated with the protection of what?",
+            "Coastal fisheries", "Forest cover", "Urban lakes", "Desert wildlife",
+            AnswerLetter.B, "History", Difficulty.MEDIUM, 5,
+            "Chipko, which grew in the Himalayan belt in the 1970s, became a landmark non-violent struggle to stop commercial felling of trees.",
+        ),
+        q(
+            "q07", "Which planet in the solar system is commonly called the Red Planet?",
+            "Venus", "Mercury", "Mars", "Jupiter",
+            AnswerLetter.C, "Space", Difficulty.EASY, 6,
+            "Iron oxide in Martian soil gives the planet its rust-red appearance, hence the familiar name.",
+        ),
+        q(
+            "q08", "The Ajanta caves are especially celebrated for which art form?",
+            "Chola bronzes", "Buddhist murals", "Mughal miniatures", "Temple gopurams",
+            AnswerLetter.B, "Culture", Difficulty.MEDIUM, 7,
+            "Ajanta’s rock-cut viharas and chaityas in Maharashtra preserve some of India’s finest surviving Buddhist wall paintings.",
+        ),
+        q(
+            "q09", "In which year did Gandhi lead the Salt March from Sabarmati to Dandi?",
+            "1919", "1922", "1930", "1942",
+            AnswerLetter.C, "History", Difficulty.HARD, 8,
+            "The 1930 march opened the civil disobedience campaign against the colonial salt tax and became a defining image of the freedom movement.",
+        ),
+        q(
+            "q10", "The ancient treatise Arthashastra is attributed to which thinker?",
+            "Kalidasa", "Panini", "Kautilya", "Patanjali",
+            AnswerLetter.C, "Literature", Difficulty.HARD, 9,
+            "Kautilya (also called Chanakya or Vishnugupta) compiled a manual of statecraft, economics and strategy associated with the Mauryan age.",
+        ),
+        q(
+            "q11", "Which peak is the highest in India?",
+            "Nanda Devi", "Kangchenjunga", "Kamet", "Trisul",
+            AnswerLetter.B, "Geography", Difficulty.HARD, 10,
+            "Kangchenjunga (8,586 m), on the India–Nepal border, is the highest mountain entirely within or on India’s boundary, and the third-highest on Earth.",
+        ),
+        q(
+            "q12", "ISRO’s first successful Mars orbiter mission is popularly known as what?",
+            "Chandrayaan-1", "Mangalyaan", "Aditya-L1", "Astrosat",
+            AnswerLetter.B, "Technology", Difficulty.MEDIUM, 11,
+            "The Mars Orbiter Mission, nicknamed Mangalyaan, reached Martian orbit in 2014, making India the first country to succeed on its first Mars attempt.",
+        ),
+        q(
+            "q13", "Who presided over the Constituent Assembly of India?",
+            "B. R. Ambedkar", "Jawaharlal Nehru", "Rajendra Prasad", "Sardar Patel",
+            AnswerLetter.C, "India", Difficulty.HARD, 12,
+            "Dr Rajendra Prasad was President of the Constituent Assembly; Ambedkar chaired the Drafting Committee that shaped the Constitution’s text.",
+        ),
+        q(
+            "q14", "Kathakali is a classical dance-drama tradition that originated in which state?",
+            "Tamil Nadu", "Odisha", "Kerala", "Manipur",
+            AnswerLetter.C, "Culture", Difficulty.MEDIUM, 13,
+            "Kathakali, with its elaborate makeup and mudras, developed in Kerala as a night-long theatrical telling of epic stories.",
+        ),
+        q(
+            "q15", "Amartya Sen received the Nobel Memorial Prize in Economic Sciences largely for work on which subject?",
+            "Auction theory", "Welfare economics and famine", "Behavioural finance", "Cryptocurrency markets",
+            AnswerLetter.B, "Business", Difficulty.EXPERT, 14,
+            "Sen’s research on social choice, poverty and famine argued that starvation often follows entitlement failure, not just a lack of food supply.",
+        ),
+        q(
+            "q16", "The Indian Space Research Organisation is headquartered in which city?",
+            "Hyderabad", "Sriharikota", "Bengaluru", "Ahmedabad",
+            AnswerLetter.C, "Technology", Difficulty.EASY, 3,
+            "ISRO’s headquarters are in Bengaluru, while launch operations are centred at Sriharikota on India’s east coast.",
+        ),
+        q(
+            "q17", "Which Mughal emperor commissioned the Taj Mahal?",
+            "Akbar", "Jahangir", "Shah Jahan", "Aurangzeb",
+            AnswerLetter.C, "History", Difficulty.EASY, 2,
+            "Shah Jahan built the Taj Mahal in Agra as a mausoleum for Mumtaz Mahal; it is now a UNESCO World Heritage Site.",
+        ),
+        q(
+            "q18", "The sport of kabaddi is governed internationally by which body most associated with the Pro Kabaddi League era in India?",
+            "ICC", "FIH", "International Kabaddi Federation", "BWF",
+            AnswerLetter.C, "Sports", Difficulty.MEDIUM, 6,
+            "Kabaddi’s international structure is organised through the International Kabaddi Federation, while India’s Pro Kabaddi League popularised the sport on television.",
+        ),
+        q(
+            "q19", "Satyajit Ray is best known as a master of which art?",
+            "Hindustani vocal music", "Cinema", "Temple architecture", "Miniature painting",
+            AnswerLetter.B, "Cinema", Difficulty.MEDIUM, 5,
+            "Ray’s Apu Trilogy and later films placed Indian art cinema on the world map and remain central to film education.",
+        ),
+        q(
+            "q20", "The zero as a numeral in positional notation was developed in which civilisation’s mathematical tradition?",
+            "Maya only", "Indian", "Egyptian", "Babylonian only",
+            AnswerLetter.B, "Science", Difficulty.HARD, 9,
+            "Indian mathematicians, including work associated with Aryabhata and later Brahmagupta, formalised zero in a place-value system that travelled west through Arabic scholarship.",
+        ),
+        q(
+            "q21", "Which Indian city is home to the gateway monument facing the Arabian Sea, built to commemorate the visit of King George V in 1911?",
+            "Chennai", "Mumbai", "Kochi", "Goa",
+            AnswerLetter.B, "India", Difficulty.EASY, 1,
+            "The Gateway of India in Mumbai was conceived after the 1911 royal visit and later became a landmark on the Apollo Bunder waterfront.",
+        ),
+        q(
+            "q22", "The classical music triangle of Carnatic music is centred historically in which region of India?",
+            "Punjab plains", "Deccan and Tamil country", "Kashmir valley", "Northeast hills",
+            AnswerLetter.B, "Music", Difficulty.HARD, 10,
+            "Carnatic music flowered in the southern courts and temple towns, especially in the Tamil and Telugu-speaking regions, with the Trinity of composers as its modern pillars.",
+        ),
+        q(
+            "q23", "The Tropic of Cancer passes through how many Indian states?",
+            "Five", "Six", "Eight", "Ten",
+            AnswerLetter.C, "Geography", Difficulty.EXPERT, 12,
+            "It crosses eight states: Gujarat, Rajasthan, Madhya Pradesh, Chhattisgarh, Jharkhand, West Bengal, Tripura and Mizoram.",
+        ),
+        q(
+            "q24", "Who is credited as the first Prime Minister of independent India?",
+            "Sardar Patel", "Jawaharlal Nehru", "C. Rajagopalachari", "Lal Bahadur Shastri",
+            AnswerLetter.B, "India", Difficulty.EASY, 0,
+            "Jawaharlal Nehru took office on 15 August 1947 and remained Prime Minister until 1964.",
+        ),
+        q(
+            "q25", "Chandrayaan-3 achieved a soft landing near which region of the Moon?",
+            "North polar ridge", "Equatorial mare", "South polar region", "Far-side highland",
+            AnswerLetter.C, "Space", Difficulty.MEDIUM, 8,
+            "In 2023, Chandrayaan-3’s Vikram lander touched down near the lunar south pole, a first for any space agency.",
+        ),
+        q(
+            "q26", "The language of the ancient grammar Ashtadhyayi is associated with which scholar?",
+            "Panini", "Kalidasa", "Tulsidas", "Kabir",
+            AnswerLetter.A, "Literature", Difficulty.HARD, 11,
+            "Pāṇini’s Aṣṭādhyāyī is a foundational work of Sanskrit grammar, still studied as one of the most precise linguistic systems of the ancient world.",
+        ),
+        q(
+            "q27", "Which Indian state is the largest by area?",
+            "Madhya Pradesh", "Maharashtra", "Rajasthan", "Uttar Pradesh",
+            AnswerLetter.C, "Geography", Difficulty.EASY, 4,
+            "Rajasthan is India’s largest state by area, stretching from the Thar Desert to the Aravalli range.",
+        ),
+        q(
+            "q28", "The Reserve Bank of India was established in which year?",
+            "1921", "1935", "1947", "1950",
+            AnswerLetter.B, "Business", Difficulty.HARD, 13,
+            "The RBI began operations in 1935 in Kolkata, later moving its central office to Mumbai, and was nationalised in 1949.",
+        ),
+        q(
+            "q29", "Which Indian city hosted the 2010 Commonwealth Games?",
+            "Mumbai", "Delhi", "Bengaluru", "Ahmedabad",
+            AnswerLetter.B, "Sports", Difficulty.EASY, 1,
+            "The XIX Commonwealth Games were held in Delhi in 2010, the first time India hosted the event.",
+        ),
+        q(
+            "q30", "The Charminar stands in which city?",
+            "Lucknow", "Hyderabad", "Jaipur", "Bhopal",
+            AnswerLetter.B, "India", Difficulty.EASY, 2,
+            "Built in 1591, the Charminar is the signature monument of Hyderabad, raised after an epidemic as a marker of thanksgiving.",
+        ),
+        q(
+            "q31", "Who composed the music for the Indian national anthem Jana Gana Mana?",
+            "Bankim Chandra Chatterjee", "Rabindranath Tagore", "A. R. Rahman", "Kavi Pradeep",
+            AnswerLetter.B, "Music", Difficulty.MEDIUM, 5,
+            "Tagore wrote the Bengali lyric and the melody; Jana Gana Mana was adopted as the national anthem in 1950.",
+        ),
+        q(
+            "q32", "The Suez Canal connects which two seas?",
+            "Black Sea and Aegean", "Red Sea and Mediterranean", "Caspian and Arabian", "North Sea and Baltic",
+            AnswerLetter.B, "World", Difficulty.MEDIUM, 6,
+            "The canal through Egypt links the Mediterranean to the Red Sea, a key artery between Europe and the Indian Ocean.",
+        ),
+        q(
+            "q33", "Which gas do plants absorb from the air during photosynthesis?",
+            "Oxygen", "Nitrogen", "Carbon dioxide", "Hydrogen",
+            AnswerLetter.C, "Science", Difficulty.EASY, 0,
+            "Green plants take in carbon dioxide and, using sunlight, convert it with water into sugars, releasing oxygen.",
+        ),
+        q(
+            "q34", "The Battle of Plassey in 1757 was fought in which present-day Indian state?",
+            "Odisha", "West Bengal", "Bihar", "Uttar Pradesh",
+            AnswerLetter.B, "History", Difficulty.HARD, 9,
+            "Plassey, in Bengal, saw Robert Clive’s East India Company forces defeat Siraj-ud-Daulah, a turning point in colonial expansion.",
+        ),
+        q(
+            "q35", "Which Indian physicist is honoured in the name of the Raman effect?",
+            "Homi Bhabha", "C. V. Raman", "Satyendra Nath Bose", "Meghnad Saha",
+            AnswerLetter.B, "Science", Difficulty.MEDIUM, 7,
+            "C. V. Raman won the 1930 Nobel Prize in Physics for scattering of light, now called the Raman effect.",
+        ),
+        q(
+            "q36", "Konark’s 13th-century temple, famous as a stone chariot, is dedicated to which deity?",
+            "Shiva", "Vishnu", "Surya", "Durga",
+            AnswerLetter.C, "Culture", Difficulty.HARD, 11,
+            "The Konark Sun Temple in Odisha is conceived as Surya’s chariot, with carved wheels and horses, and is a UNESCO World Heritage Site.",
+        ),
+        q(
+            "q37", "FIFA World Cup football is contested how often?",
+            "Every two years", "Every three years", "Every four years", "Every five years",
+            AnswerLetter.C, "Sports", Difficulty.EASY, 3,
+            "The men’s World Cup has been staged every four years since 1930, aside from wartime interruptions.",
+        ),
+        q(
+            "q38", "Which Indian state is the largest producer of tea?",
+            "Kerala", "Tamil Nadu", "Assam", "West Bengal",
+            AnswerLetter.C, "Geography", Difficulty.MEDIUM, 4,
+            "Assam’s Brahmaputra valley estates make it India’s largest tea-producing state, with Darjeeling in West Bengal known for aroma rather than volume.",
+        ),
+        q(
+            "q39", "The Indus Valley site of Dholavira is in which Indian state?",
+            "Rajasthan", "Gujarat", "Haryana", "Punjab",
+            AnswerLetter.B, "History", Difficulty.EXPERT, 12,
+            "Dholavira, on Khadir island in the Rann of Kutch, is among the most impressive Harappan cities and a UNESCO World Heritage Site.",
+        ),
+        q(
+            "q40", "Who was the first woman President of India?",
+            "Indira Gandhi", "Pratibha Patil", "Sarojini Naidu", "Sushma Swaraj",
+            AnswerLetter.B, "India", Difficulty.MEDIUM, 8,
+            "Pratibha Patil served as President from 2007 to 2012. Indira Gandhi was the first woman Prime Minister, a different office.",
+        ),
+    )
+
+    private fun q(
+        id: String,
+        prompt: String,
+        a: String,
+        b: String,
+        c: String,
+        d: String,
+        correct: AnswerLetter,
+        category: String,
+        difficulty: Difficulty,
+        prizeLevel: Int,
+        explanation: String,
+        vararg tags: String,
+    ) = QuestionRecord(
+        id = id,
+        prompt = prompt,
+        optionA = a,
+        optionB = b,
+        optionC = c,
+        optionD = d,
+        correct = correct,
+        category = category,
+        tags = listOf(category) + tags.toList(),
+        difficulty = difficulty,
+        explanation = explanation,
+        prizeLevel = prizeLevel,
+    )
+}
