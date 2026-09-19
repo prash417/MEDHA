@@ -51,12 +51,13 @@ fun HomeScreen(
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     HomeListNav(
+                        selected = ui.dest,
                         onSelect = { dest ->
                             when (dest) {
                                 LobbyDest.LEADERBOARD -> onLeaderboard()
                                 LobbyDest.PROFILE -> onProfile()
                                 LobbyDest.SETTINGS -> onSettings()
-                                LobbyDest.HOME -> Unit
+                                LobbyDest.HOME -> vm.select(LobbyDest.HOME)
                                 else -> vm.select(dest)
                             }
                         },
@@ -67,7 +68,7 @@ fun HomeScreen(
                     )
                 }
             }
-            CategoriesBar()
+            CategoriesBar(onStart = { onPlay(GameMode.CLASSIC) })
         }
         TopGameHud(
             coins = player.coins,

@@ -1,7 +1,15 @@
 package studio.paras.medha.ui.home
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -10,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -28,6 +38,10 @@ private val CatSlotPadEnd = 0.344f
 private val CatSlotPadTop = 0.30f
 private val CatSlotPadBottom = 0.16f
 private val CatSlotGap = 0.008f
+private val CatCuePadStart = 0.718f
+private val CatCuePadEnd = 0.042f
+private val CatCuePadTop = 0.28f
+private val CatCuePadBottom = 0.20f
 
 private data class CatTile(
     val icon: Int,
@@ -48,6 +62,7 @@ private val CategoryTiles = listOf(
 
 @Composable
 fun CategoriesBar(
+    onStart: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -95,6 +110,40 @@ fun CategoriesBar(
                         ),
                 )
             }
+        }
+        val infinite = rememberInfiniteTransition(label = "challengeCue")
+        val pulse by infinite.animateFloat(
+            initialValue = 0.97f,
+            targetValue = 1.04f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    start = maxWidth * CatCuePadStart,
+                    end = maxWidth * CatCuePadEnd,
+                    top = maxHeight * CatCuePadTop,
+                    bottom = maxHeight * CatCuePadBottom,
+                )
+                .clickable(onClick = onStart),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.challenge_your_mind),
+                contentDescription = "Challenge your mind",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = pulse
+                        scaleY = pulse
+                    },
+            )
         }
     }
 }
