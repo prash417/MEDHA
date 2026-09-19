@@ -32,6 +32,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,9 +132,9 @@ fun PlayerProfileHud(
                 }
                 Box(
                     Modifier
-                        .padding(start = 4.dp, top = 6.dp)
+                        .padding(start = 4.dp, top = 5.dp)
                         .fillMaxWidth()
-                        .height(6.dp)
+                        .height(13.dp)
                         .border(
                             1.dp,
                             Brush.horizontalGradient(
@@ -143,26 +144,48 @@ fun PlayerProfileHud(
                         )
                         .clip(CircleShape)
                         .background(Color(0xFF0A0C14)),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(player.xpProgress.coerceIn(0.16f, 1f))
-                            .fillMaxHeight()
-                            .clip(CircleShape)
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFFB8862A), Color(0xFFFFD56A), Color(0xFFFFF6D0)),
-                                ),
-                            ),
-                    ) {
+                    val fill = player.xpProgress.coerceIn(0f, 1f)
+                    if (fill > 0f) {
                         Box(
                             Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(0.45f)
-                                .align(Alignment.TopCenter)
-                                .background(Color(0x55FFFFFF)),
-                        )
+                                .align(Alignment.CenterStart)
+                                .fillMaxWidth(fill)
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFFB8862A), Color(0xFFFFD56A), Color(0xFFFFF6D0)),
+                                    ),
+                                ),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(0.45f)
+                                    .align(Alignment.TopCenter)
+                                    .background(Color(0x55FFFFFF)),
+                            )
+                        }
                     }
+                    val into100 = (player.xpProgress * 100f).toInt().coerceIn(0, 100)
+                    Text(
+                        "$into100/100",
+                        color = Color(0xFFFFF8E8),
+                        fontFamily = Outfit,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 8.sp,
+                        lineHeight = 10.sp,
+                        textAlign = TextAlign.Center,
+                        style = TextStyle(
+                            shadow = Shadow(
+                                color = Color(0xCC000000),
+                                offset = Offset.Zero,
+                                blurRadius = 4f,
+                            ),
+                        ),
+                    )
                 }
             }
             Box(

@@ -72,6 +72,7 @@ fun HomeScreen(
         TopGameHud(
             coins = player.coins,
             gems = player.gems,
+            level = player.level,
             onAdd = { vm.open(LobbyOverlay.VAULT) },
             onFriends = { vm.open(LobbyOverlay.FRIENDS) },
             onMessages = { vm.open(LobbyOverlay.MESSAGES) },

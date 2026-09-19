@@ -18,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import studio.paras.medha.R
 import studio.paras.medha.domain.model.GameMode
 
-private val ModeHeight = 60.dp
 private val ClassicHeight = 56.dp
 private val QuickHeight = 66.dp
+private val PracticeHeight = 56.dp
 private val ModeGap = 0.dp
 private val ModePadStart = 0.dp
 private val ModePadEnd = 16.dp
@@ -37,7 +37,7 @@ private data class ModeArt(
 private val ModeItems = listOf(
     ModeArt(GameMode.CLASSIC, R.drawable.mode_classic, "Classic", ClassicHeight),
     ModeArt(GameMode.QUICK, R.drawable.mode_quick_play, "Quick Play", QuickHeight),
-    ModeArt(GameMode.PRACTICE, R.drawable.mode_practice, "Practice", ModeHeight),
+    ModeArt(GameMode.PRACTICE, R.drawable.mode_practice, "Practice", PracticeHeight),
 )
 
 @Composable

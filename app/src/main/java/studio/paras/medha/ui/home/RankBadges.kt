@@ -20,6 +20,29 @@ object RankBadges {
         }
     }
 
+    fun messageFor(level: Int): String = when (level) {
+        1 -> "First spark"
+        2 -> "Hunger wakes"
+        3 -> "Lock clicks"
+        4 -> "Mind on fire"
+        5 -> "Seat taken"
+        6 -> "No turning"
+        7 -> "Gold in sight"
+        8 -> "Quiet thunder"
+        9 -> "Nine lives in"
+        else -> when ((level / 10).coerceIn(1, 10)) {
+            1 -> "Path of light"
+            2 -> "Lessons burn"
+            3 -> "Thoughts deepen"
+            4 -> "Ink and gold"
+            5 -> "Puzzle king"
+            6 -> "Every move"
+            7 -> "A rare mind"
+            8 -> "Halls go still"
+            9 -> "Myth walks in"
+            else -> "Last lock"
+        }
+    }
     fun labelFor(level: Int): String {
         val tier = (level / 10).coerceIn(0, 10)
         return when (tier) {
