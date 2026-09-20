@@ -17,6 +17,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:enableOnBackInvokedCallback="false"
             android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Medha.Splash">

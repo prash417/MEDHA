@@ -1,25 +1,42 @@
 package studio.paras.medha.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
+import studio.paras.medha.R
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
 
 @Composable
 fun HomeScreen(
     profile: PlayerProfile,
-    onPlay: (GameMode) -> Unit,
+    onPlay: (GameMode, String?) -> Unit,
+    onChallenge: () -> Unit,
     onProfile: () -> Unit,
     onSettings: () -> Unit,
     onLeaderboard: () -> Unit,
@@ -27,6 +44,12 @@ fun HomeScreen(
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
     val player = profile.toLobbyPlayer()
+    var showPickToast by remember { mutableStateOf(false) }
+    LaunchedEffect(showPickToast) {
+        if (!showPickToast) return@LaunchedEffect
+        delay(2400)
+        showPickToast = false
+    }
 
     Box(Modifier.fillMaxSize()) {
         GameLobbyBackground(Modifier.fillMaxSize())
@@ -63,12 +86,22 @@ fun HomeScreen(
                         },
                     )
                     ModePlayList(
-                        onPlay = onPlay,
+                        onPlay = { mode -> onPlay(mode, ui.selectedCategory) },
                         modifier = Modifier.weight(1f),
                     )
                 }
             }
-            CategoriesBar(onStart = { onPlay(GameMode.CLASSIC) })
+            CategoriesBar(
+                selectedId = ui.selectedCategory,
+                onSelectCategory = vm::selectCategory,
+                onStart = {
+                    if (ui.selectedCategory == null) {
+                        showPickToast = true
+                    } else {
+                        onChallenge()
+                    }
+                },
+            )
         }
         TopGameHud(
             coins = player.coins,
@@ -87,5 +120,20 @@ fun HomeScreen(
             catalog = ui.catalog,
             onDismiss = vm::dismissOverlay,
         )
+        AnimatedVisibility(
+            visible = showPickToast,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.pick_any_cg_toast),
+                contentDescription = "Pick any category first",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .width(268.dp)
+                    .clickable { showPickToast = false },
+            )
+        }
     }
 }

@@ -1,6 +1,7 @@
 package studio.paras.medha
 
 import android.app.Application
+import com.google.firebase.FirebaseApp
 import studio.paras.medha.di.AppContainer
 
 class MedhaApplication : Application() {
@@ -9,6 +10,7 @@ class MedhaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        FirebaseApp.initializeApp(this)
         container = AppContainer(this)
     }
 

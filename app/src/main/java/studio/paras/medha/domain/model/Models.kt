@@ -124,10 +124,10 @@ data class GameResult(
 )
 
 data class PlayerProfile(
-    val displayName: String = "",
+    val displayName: String = "Guest",
     val avatarId: Int = 0,
     val language: AppLanguage = AppLanguage.ENGLISH,
-    val onboardingComplete: Boolean = false,
+    val onboardingComplete: Boolean = true,
     val musicEnabled: Boolean = true,
     val sfxEnabled: Boolean = true,
     val voiceEnabled: Boolean = false,

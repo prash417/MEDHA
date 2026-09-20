@@ -5,7 +5,6 @@ import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,15 +19,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +37,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import studio.paras.medha.core.design.Cormorant
 import studio.paras.medha.core.design.Outfit
-import kotlin.math.hypot
 
 @Composable
 fun SplashScreen(
@@ -71,62 +65,35 @@ fun SplashScreen(
         if (ui.finished) onFinished()
     }
 
-    val irisOpen = easeOutCubic(appear(time, 1.72f, 1.35f))
-    val studio = (1f - appear(time, 1.28f, 0.48f))
-    val hud = appear(time, 3.30f, 0.70f)
+    val artIn = appear(time, 2.05f, 1.25f)
+    val studio = 1f - appear(time, 2.20f, 0.95f)
+    val hud = appear(time, 3.15f, 0.85f)
 
-    BoxWithConstraints(
+    Box(
         Modifier
             .fillMaxSize()
             .background(SplashPalette.Ink),
     ) {
-        val artAspect = 16f / 9f
-        val screenAspect = maxWidth / maxHeight
-        val coverH = if (screenAspect > artAspect) maxWidth / artAspect else maxHeight
-        val coverW = coverH * artAspect
-        val logoW = coverW * 0.20f
-        val logoH = coverH * 0.26f
-        val logoTop = coverH * 0.13f
-
-        Box(
-            Modifier
+        SplashBackground(
+            time = time,
+            modifier = Modifier
                 .fillMaxSize()
-                .drawWithContent {
-                    if (irisOpen >= 0.998f) {
-                        drawContent()
-                    } else if (irisOpen > 0.004f) {
-                        val c = Offset(size.width * 0.5f, size.height * 0.34f)
-                        val maxR = hypot(size.width.toDouble(), size.height.toDouble()).toFloat()
-                        val r = maxR * irisOpen
-                        val hole = Path().apply {
-                            addOval(Rect(c.x - r, c.y - r, c.x + r, c.y + r))
-                        }
-                        clipPath(hole) {
-                            this@drawWithContent.drawContent()
-                        }
-                    }
+                .graphicsLayer {
+                    alpha = artIn
+                    val z = lerp(1.045f, 1f, artIn)
+                    scaleX = z
+                    scaleY = z
                 },
-        ) {
-            SplashBackground(time = time, modifier = Modifier.fillMaxSize())
-            CinematicLightEffect(time = time, modifier = Modifier.fillMaxSize())
-            MedhaLogo(
-                time = time,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = logoTop)
-                    .width(logoW)
-                    .height(logoH),
-            )
-            LoadingProgress(
-                state = ui,
-                time = time,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .graphicsLayer { alpha = hud },
-            )
-        }
-
+        )
+        LoadingProgress(
+            state = ui,
+            time = time,
+            showStudioCredit = false,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .graphicsLayer { alpha = hud },
+        )
         StudioCard(
             time = time,
             alpha = studio,
@@ -143,10 +110,15 @@ private fun StudioCard(
     alpha: Float,
     modifier: Modifier = Modifier,
 ) {
-    val kicker = appear(time, 0.06f, 0.36f)
-    val line = appear(time, 0.78f, 0.42f)
+    val kicker = appear(time, 0.08f, 0.55f)
+    val line = appear(time, 0.95f, 0.55f)
     Column(
-        modifier.graphicsLayer { this.alpha = alpha },
+        modifier.graphicsLayer {
+            this.alpha = alpha
+            val s = lerp(1f, 0.96f, 1f - alpha)
+            scaleX = s
+            scaleY = s
+        },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -170,7 +142,7 @@ private fun StudioCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StudioTitle.forEachIndexed { i, ch ->
-                val t = easeOutCubic(appear(time, 0.30f + i * 0.040f, 0.30f))
+                val t = easeOutCubic(appear(time, 0.38f + i * 0.055f, 0.42f))
                 Text(
                     ch.toString(),
                     fontFamily = Cormorant,

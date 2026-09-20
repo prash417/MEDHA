@@ -45,85 +45,95 @@ fun LoadingProgress(
     state: SplashUiState,
     time: Float,
     modifier: Modifier = Modifier,
+    showStudioCredit: Boolean = true,
 ) {
     val p = state.progress.coerceIn(0f, 1f)
 
     Column(
         modifier
             .fillMaxWidth()
-            .padding(bottom = 14.dp),
+            .padding(bottom = if (showStudioCredit) 14.dp else 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
-            Modifier.fillMaxWidth(0.58f),
+            Modifier.fillMaxWidth(0.42f),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             FloorText(
                 text = state.line,
                 color = Color.White,
                 style = LineStyle,
-                fontSize = 15.sp,
+                fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(22.dp),
+                    .height(18.dp),
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 6.dp),
             ) {
-                Canvas(Modifier.weight(1f).height(16.dp)) {
-                    val h = 6.dp.toPx()
+                Canvas(Modifier.weight(1f).height(20.dp)) {
+                    val h = 9.dp.toPx()
+                    val stroke = 1.15.dp.toPx()
                     val top = (size.height - h) / 2f
                     val r = CornerRadius(h / 2f, h / 2f)
+                    val gold = Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF8B6914),
+                            Color(0xFFC9A34A),
+                            Color(0xFFE8C96A),
+                            Color(0xFFD4AF37),
+                            Color(0xFF8B6914),
+                        ),
+                    )
                     drawRoundRect(
-                        color = Color(0x99000000),
+                        color = Color(0xE002040C),
                         topLeft = Offset(0f, top),
                         size = Size(size.width, h),
                         cornerRadius = r,
                     )
-                    drawRoundRect(
-                        color = Color(0x66F0C85A),
-                        topLeft = Offset(0f, top),
-                        size = Size(size.width, h),
-                        cornerRadius = r,
-                    )
-                    val fill = size.width * p
+                    val inset = stroke
+                    val fill = ((size.width - inset * 2f) * p).coerceAtLeast(0f)
                     if (fill > 1f) {
                         drawRoundRect(
-                            brush = Brush.horizontalGradient(
-                                listOf(SplashPalette.GoldSoft, SplashPalette.Gold, SplashPalette.GoldHi),
-                            ),
-                            topLeft = Offset(0f, top),
-                            size = Size(fill, h),
-                            cornerRadius = r,
+                            brush = gold,
+                            topLeft = Offset(inset, top + inset),
+                            size = Size(fill, (h - inset * 2f).coerceAtLeast(1f)),
+                            cornerRadius = CornerRadius((h - inset * 2f) / 2f),
                         )
                         val shimmer = ((time * 0.85f) % 1.4f) / 1.4f
                         val sx = fill * shimmer
-                        val sw = (fill * 0.20f).coerceAtLeast(10f)
+                        val sw = (fill * 0.20f).coerceAtLeast(8f)
                         drawRoundRect(
                             brush = Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color(0xCCFFF3C4), Color.Transparent),
+                                listOf(Color.Transparent, Color(0x66FFE9A0), Color.Transparent),
                             ),
-                            topLeft = Offset((sx - sw / 2f).coerceAtLeast(0f), top),
-                            size = Size(sw.coerceAtMost(fill), h),
-                            cornerRadius = r,
+                            topLeft = Offset(inset + (sx - sw / 2f).coerceAtLeast(0f), top + inset),
+                            size = Size(sw.coerceAtMost(fill), (h - inset * 2f).coerceAtLeast(1f)),
+                            cornerRadius = CornerRadius((h - inset * 2f) / 2f),
                         )
                     }
+                    drawRoundRect(
+                        brush = gold,
+                        topLeft = Offset(stroke / 2f, top + stroke / 2f),
+                        size = Size(size.width - stroke, h - stroke),
+                        cornerRadius = r,
+                        style = Stroke(width = stroke),
+                    )
                 }
                 FloorText(
                     text = "${state.percent}%",
-                    color = Color.White,
+                    color = Color(0xFFE8C96A),
                     style = LineStyle,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.End,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Start,
                     overflow = TextOverflow.Clip,
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .width(48.dp),
+                    fillWidth = false,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
             }
             FloorText(
@@ -131,35 +141,37 @@ fun LoadingProgress(
                 color = Color.White,
                 style = LineStyle,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 textAlign = TextAlign.Center,
                 overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 5.dp)
-                    .height(18.dp),
+                    .padding(top = 4.dp)
+                    .height(16.dp),
             )
         }
 
-        Spacer(Modifier.height(14.dp))
-        Text(
-            "A GAME BY",
-            style = LineStyle,
-            fontWeight = FontWeight.Medium,
-            fontSize = 9.sp,
-            letterSpacing = 3.2.sp,
-            color = Color(0xFFF4F1E6),
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            "PARAS STUDIOS",
-            fontFamily = Cormorant,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            letterSpacing = 3.4.sp,
-            color = SplashPalette.GoldHi,
-            textAlign = TextAlign.Center,
-        )
+        if (showStudioCredit) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "A GAME BY",
+                style = LineStyle,
+                fontWeight = FontWeight.Medium,
+                fontSize = 9.sp,
+                letterSpacing = 3.2.sp,
+                color = Color(0xFFF4F1E6),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "PARAS STUDIOS",
+                fontFamily = Cormorant,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                letterSpacing = 3.4.sp,
+                color = SplashPalette.GoldHi,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -173,7 +185,9 @@ private fun FloorText(
     fontWeight: FontWeight? = null,
     textAlign: TextAlign? = null,
     overflow: TextOverflow = TextOverflow.Ellipsis,
+    fillWidth: Boolean = true,
 ) {
+    val textMod = if (fillWidth) Modifier.fillMaxWidth() else Modifier
     Box(modifier, contentAlignment = Alignment.Center) {
         Text(
             text = text,
@@ -187,7 +201,7 @@ private fun FloorText(
             textAlign = textAlign,
             maxLines = 1,
             overflow = overflow,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textMod,
         )
         Text(
             text = text,
@@ -198,7 +212,7 @@ private fun FloorText(
             textAlign = textAlign,
             maxLines = 1,
             overflow = overflow,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textMod,
         )
     }
 }

@@ -98,6 +98,8 @@ data class LobbyCatalog(
                     LobbyCategory("spo", "Sports", LobbyAccent.TEAL),
                     LobbyCategory("mov", "Movies", LobbyAccent.GOLD),
                     LobbyCategory("tech", "Technology", LobbyAccent.BLUE),
+                    LobbyCategory("fusion", "Fusion", LobbyAccent.BLUE),
+                    LobbyCategory("nexus", "Nexus", LobbyAccent.TEAL),
                     LobbyCategory("art", "Arts & Culture", LobbyAccent.AMBER),
                     LobbyCategory("env", "Environment", LobbyAccent.TEAL),
                 ),

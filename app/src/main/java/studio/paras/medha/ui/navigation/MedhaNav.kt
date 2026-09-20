@@ -13,11 +13,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.delay
@@ -27,45 +27,55 @@ import studio.paras.medha.core.audio.MusicTrack
 import studio.paras.medha.core.audio.Sfx
 import studio.paras.medha.di.AppContainer
 import studio.paras.medha.core.ui.ProvideHudControls
-import studio.paras.medha.domain.model.AppLanguage
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
+import studio.paras.medha.ui.SwipeBackController
+import studio.paras.medha.ui.challenge.ChallengeScreen
 import studio.paras.medha.ui.game.GameRoute
 import studio.paras.medha.ui.game.GameViewModel
 import studio.paras.medha.ui.home.HomeScreen
 import studio.paras.medha.ui.leaderboard.LeaderboardScreen
-import studio.paras.medha.ui.onboarding.OnboardingScreen
 import studio.paras.medha.ui.profile.ProfileScreen
 import studio.paras.medha.ui.result.ResultScreen
 import studio.paras.medha.ui.settings.SettingsScreen
 import studio.paras.medha.ui.splash.SplashScreen
 
 object Routes {
-    const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val GAME = "game/{mode}"
     const val RESULT = "result"
     const val SETTINGS = "settings"
     const val PROFILE = "profile"
     const val LEADERBOARD = "leaderboard"
+    const val CHALLENGE = "challenge"
     fun game(mode: GameMode) = "game/${mode.id}"
 }
 
-/** Flip to true when the cinematic splash should play before home again. */
-private const val PlaySplashOnLaunch = false
+/** Flip to false to skip the cinematic splash and go straight to home. */
+private const val PlaySplashOnLaunch = true
 
 @Composable
 fun MedhaNav(
     container: AppContainer,
     profile: PlayerProfile,
+    swipeBack: SwipeBackController,
+    modifier: Modifier = Modifier,
 ) {
     val nav = rememberNavController()
+    swipeBack.nav = nav
+    val dest by nav.currentBackStackEntryAsState()
+    val route = dest?.destination?.route
+    val onHome = route == Routes.HOME
+    nav.enableOnBackPressed(!onHome)
+    LaunchedEffect(onHome, route) {
+        swipeBack.route = route
+        swipeBack.callback.isEnabled = onHome
+    }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var bootDone by remember { mutableStateOf(!PlaySplashOnLaunch) }
     var overlay by remember { mutableStateOf(PlaySplashOnLaunch) }
     var overlayAlpha by remember { mutableFloatStateOf(1f) }
-    val startDest = if (profile.onboardingComplete) Routes.HOME else Routes.ONBOARDING
+    val startDest = Routes.HOME
     val toggleMusic: () -> Unit = {
         scope.launch {
             container.playerStore.update { it.copy(musicEnabled = !it.musicEnabled) }
@@ -95,45 +105,24 @@ fun MedhaNav(
         onToggleSfx = toggleSfx,
         onToggleVoice = toggleVoice,
     ) {
-    Box(Modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
         if (bootDone) {
             NavHost(
                 navController = nav,
                 startDestination = startDest,
             ) {
-                composable(Routes.ONBOARDING) {
-                    OnboardingScreen(
-                        onFinished = { name, avatar, language ->
-                            scope.launch {
-                                container.playerStore.update {
-                                    it.copy(
-                                        displayName = name,
-                                        avatarId = avatar,
-                                        language = language,
-                                        onboardingComplete = true,
-                                    )
-                                }
-                                applyLocale(context, language)
-                                nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
-                            }
-                        },
-                        onGuest = {
-                            scope.launch {
-                                container.playerStore.update {
-                                    it.copy(displayName = "Guest", onboardingComplete = true)
-                                }
-                                nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
-                            }
-                        },
-                    )
-                }
                 composable(Routes.HOME) {
                     LaunchedEffect(Unit) { container.audio.setMusic(MusicTrack.LOBBY) }
                     HomeScreen(
                         profile = profile,
-                        onPlay = { mode ->
+                        onPlay = { mode, category ->
+                            container.playCategory = category
                             container.audio.play(Sfx.TAP)
                             nav.navigate(Routes.game(mode))
+                        },
+                        onChallenge = {
+                            container.audio.play(Sfx.TAP)
+                            nav.navigate(Routes.CHALLENGE)
                         },
                         onProfile = { nav.navigate(Routes.PROFILE) },
                         onSettings = { nav.navigate(Routes.SETTINGS) },
@@ -185,6 +174,9 @@ fun MedhaNav(
                 composable(Routes.LEADERBOARD) {
                     LeaderboardScreen(profile = profile, onBack = { nav.popBackStack() })
                 }
+                composable(Routes.CHALLENGE) {
+                    ChallengeScreen(onBack = { nav.popBackStack() })
+                }
             }
         }
 
@@ -217,10 +209,4 @@ fun MedhaNav(
     }
 }
 
-private fun applyLocale(context: android.content.Context, language: AppLanguage) {
-    val locale = java.util.Locale.forLanguageTag(language.code)
-    java.util.Locale.setDefault(locale)
-    val config = android.content.res.Configuration(context.resources.configuration)
-    config.setLocale(locale)
-    context.resources.updateConfiguration(config, context.resources.displayMetrics)
-}
+

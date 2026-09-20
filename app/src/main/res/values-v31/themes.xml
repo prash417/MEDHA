@@ -13,6 +13,7 @@
         <item name="android:statusBarColor">@color/splash_ink</item>
         <item name="android:navigationBarColor">@color/splash_ink</item>
         <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

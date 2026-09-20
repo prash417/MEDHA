@@ -17,9 +17,10 @@ import java.time.LocalDate
 import kotlin.random.Random
 
 interface QuestionRepository {
-    suspend fun loadSession(mode: GameMode, seenIds: List<String>): Result<List<QuestionRecord>>
+    suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String? = null): Result<List<QuestionRecord>>
     suspend fun validate(questionId: String, selected: AnswerLetter): Result<AnswerVerdict>
     fun peek(questionId: String): QuestionRecord?
+    fun replacement(currentId: String, usedIds: Set<String>, difficulty: Difficulty): QuestionRecord?
 }
 
 /**
@@ -30,7 +31,7 @@ class LocalQuestionRepository : QuestionRepository {
 
     private val byId = SampleQuestionBank.all.associateBy { it.id }
 
-    override suspend fun loadSession(mode: GameMode, seenIds: List<String>): Result<List<QuestionRecord>> {
+    override suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String?): Result<List<QuestionRecord>> {
         delay(280)
         val ladder = PrizeLadder.forMode(mode)
         val pool = SampleQuestionBank.all.filter { it.active && it.language == "en" }
@@ -62,7 +63,7 @@ class LocalQuestionRepository : QuestionRepository {
 
     override fun peek(questionId: String): QuestionRecord? = byId[questionId]
 
-    fun replacement(currentId: String, usedIds: Set<String>, difficulty: Difficulty): QuestionRecord? {
+    override fun replacement(currentId: String, usedIds: Set<String>, difficulty: Difficulty): QuestionRecord? {
         val pool = SampleQuestionBank.all.filter { it.id != currentId && it.id !in usedIds }
         return pool.filter { it.difficulty == difficulty }.randomOrNull()
             ?: pool.randomOrNull()

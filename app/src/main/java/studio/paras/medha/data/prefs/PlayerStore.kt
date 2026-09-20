@@ -68,10 +68,10 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         val lang = AppLanguage.entries.find { it.code == this[Keys.language] } ?: AppLanguage.ENGLISH
         val seen = this[Keys.seen].orEmpty().split(',').filter { it.isNotBlank() }
         return PlayerProfile(
-            displayName = this[Keys.name].orEmpty(),
+            displayName = this[Keys.name]?.ifBlank { "Guest" } ?: "Guest",
             avatarId = this[Keys.avatar] ?: 0,
             language = lang,
-            onboardingComplete = this[Keys.onboarded] ?: false,
+            onboardingComplete = true,
             musicEnabled = this[Keys.music] ?: true,
             sfxEnabled = this[Keys.sfx] ?: true,
             voiceEnabled = this[Keys.voice] ?: false,

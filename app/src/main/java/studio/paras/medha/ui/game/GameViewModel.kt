@@ -95,7 +95,7 @@ class GameViewModel(
                 if (mode == GameMode.DAILY) AnalyticsEvents.DAILY_STARTED else AnalyticsEvents.GAME_STARTED,
                 mapOf("mode" to mode.id),
             )
-            val result = container.questions.loadSession(mode, profile.seenQuestionIds)
+            val result = container.questions.loadSession(mode, profile.seenQuestionIds, container.playCategory)
             result.fold(
                 onSuccess = { list ->
                     if (list.isEmpty()) {
@@ -357,7 +357,7 @@ class GameViewModel(
                 _state.update { it.copy(expert = advice, usedLifelines = it.usedLifelines + kind) }
             }
             LifelineKind.SWITCH -> {
-                val replacement = container.localQuestions.replacement(record.id, usedIds, record.difficulty)
+                val replacement = container.questions.replacement(record.id, usedIds, record.difficulty)
                 if (replacement == null) {
                     _state.update { it.copy(error = "No alternate question is available.") }
                     return

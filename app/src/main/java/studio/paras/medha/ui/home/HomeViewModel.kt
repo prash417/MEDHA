@@ -17,7 +17,7 @@ data class HomeUiState(
     val catalog: LobbyCatalog = LobbyCatalog.sample(),
     val nowMs: Long = System.currentTimeMillis(),
     val selectedMode: GameMode = GameMode.CLASSIC,
-    val selectedCategory: String = "gk",
+    val selectedCategory: String? = null,
 )
 
 class HomeViewModel : ViewModel() {
@@ -39,7 +39,7 @@ class HomeViewModel : ViewModel() {
     }
 
     fun selectCategory(id: String) {
-        _state.update { it.copy(selectedCategory = id, selectedMode = GameMode.PRACTICE, dest = LobbyDest.HOME) }
+        _state.update { it.copy(selectedCategory = id) }
     }
 
     fun select(dest: LobbyDest) {

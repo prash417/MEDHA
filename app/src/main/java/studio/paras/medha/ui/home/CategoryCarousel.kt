@@ -16,9 +16,11 @@ import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Biotech
 import androidx.compose.material.icons.outlined.Laptop
 import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Park
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.SportsSoccer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -111,6 +113,8 @@ private fun iconFor(id: String): ImageVector = when (id) {
     "spo" -> Icons.Outlined.SportsSoccer
     "mov" -> Icons.Outlined.Movie
     "tech" -> Icons.Outlined.Laptop
+    "fusion" -> Icons.Outlined.Shuffle
+    "nexus" -> Icons.Outlined.Casino
     "art" -> Icons.Outlined.Palette
     "env" -> Icons.Outlined.Park
     else -> Icons.Outlined.Public
