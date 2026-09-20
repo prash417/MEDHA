@@ -4,7 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,7 +72,7 @@ fun PlayerProfileHud(
         modifier
             .height(height)
             .width(width)
-            .clickable(onClick = onClick),
+            .medhaClickable(onClick = onClick),
     ) {
         Image(
             painter = painterResource(R.drawable.profile_box),

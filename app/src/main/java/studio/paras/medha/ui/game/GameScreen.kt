@@ -3,7 +3,7 @@ package studio.paras.medha.ui.game
 import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -194,7 +194,7 @@ fun GameScreen(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .clickable(onClick = onDismissError),
+                    .medhaClickable(onClick = onDismissError),
                 contentAlignment = Alignment.BottomCenter,
             ) {
                 Text(state.error, style = MedhaTypography.bodyMedium, color = MedhaColors.Wrong, modifier = Modifier.padding(24.dp))
@@ -320,7 +320,7 @@ private fun PrizeRibbon(
     val ladder = PrizeLadder.forMode(state.mode)
     Column(
         modifier
-            .clickable(onClick = onClick)
+            .medhaClickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.End,
@@ -370,7 +370,7 @@ private fun GameTopBar(
             onQuit.let { }
         }
         Spacer(Modifier.weight(1f))
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onLadder)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.medhaClickable(onClick = onLadder)) {
             Text(
                 state.playingFor?.label ?: "—",
                 style = MedhaTypography.titleLarge.copy(color = MedhaColors.Copper, fontSize = 22.sp),

@@ -1,6 +1,6 @@
 package studio.paras.medha.ui.leaderboard
 
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,7 +47,7 @@ fun LeaderboardScreen(profile: PlayerProfile, onBack: () -> Unit) {
                         color = if (i == tab) MedhaColors.Teal else MedhaColors.Mist,
                         modifier = Modifier
                             .padding(end = 20.dp)
-                            .clickable { tab = i }
+                            .medhaClickable { tab = i }
                             .padding(vertical = 8.dp),
                     )
                 }

@@ -207,7 +207,7 @@ fun AnswerFacet(
             .background(bg)
             .border(2.dp, stroke, FacetShape)
             .semantics { contentDescription = "Option $letter. $text.$status" }
-            .clickable(
+            .medhaClickable(
                 enabled = enabled,
                 interactionSource = interaction,
                 indication = null,

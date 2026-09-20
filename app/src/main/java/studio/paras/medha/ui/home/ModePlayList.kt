@@ -1,7 +1,7 @@
 package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +19,7 @@ import studio.paras.medha.R
 import studio.paras.medha.domain.model.GameMode
 
 private val ClassicHeight = 56.dp
-private val QuickHeight = 66.dp
+private val QuickHeight = 63.dp
 private val PracticeHeight = 56.dp
 private val ModeGap = 0.dp
 private val ModePadStart = 0.dp
@@ -65,7 +65,7 @@ fun ModePlayList(
                 modifier = Modifier
                     .weight(1f)
                     .height(item.height)
-                    .clickable { onPlay(item.mode) },
+                    .medhaClickable { onPlay(item.mode) },
             )
         }
     }

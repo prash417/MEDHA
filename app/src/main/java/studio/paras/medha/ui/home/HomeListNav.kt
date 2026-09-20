@@ -1,7 +1,7 @@
 package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -140,7 +140,7 @@ fun HomeListNav(
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(top = item.padTop, bottom = item.padBottom)
-                        .clickable { onSelect(item.dest) },
+                        .medhaClickable { onSelect(item.dest) },
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Row(

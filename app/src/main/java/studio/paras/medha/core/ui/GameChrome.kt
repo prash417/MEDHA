@@ -175,7 +175,7 @@ fun HexIconButton(
             Modifier
                 .size(size)
                 .graphicsLayer { scaleX = if (pressed) 0.92f else 1f; scaleY = if (pressed) 0.92f else 1f }
-                .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
+                .medhaClickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
         ) {
             val cx = this.size.width / 2f
             val cy = this.size.height / 2f
@@ -301,7 +301,7 @@ fun EnergyButton(
                 if (filled) Brush.horizontalGradient(listOf(accent.copy(alpha = 0.95f), Color(0xFF9FFFF0)))
                 else Brush.horizontalGradient(listOf(Color(0x66101820), Color(0x44101820))),
             )
-            .clickable(enabled = enabled, interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+            .medhaClickable(enabled = enabled, interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .padding(horizontal = 28.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -445,7 +445,7 @@ fun ModeOrb(
     val pulse = rememberArenaPulse()
     Column(
         modifier
-            .clickable(onClick = onClick)
+            .medhaClickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -486,7 +486,7 @@ fun GlowWell(
                 drawLine(accent.copy(alpha = 0.55f), Offset(18f, 0f), Offset(size.width - 18f, 0f), 2f)
                 drawLine(accent.copy(alpha = 0.25f), Offset(18f, size.height), Offset(size.width - 18f, size.height), 2f)
             }
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.medhaClickable(onClick = onClick) else Modifier)
             .padding(16.dp),
         content = content,
     )

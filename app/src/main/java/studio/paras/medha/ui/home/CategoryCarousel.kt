@@ -2,7 +2,7 @@ package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,7 +79,7 @@ fun CategoryCarousel(
                         .then(
                             if (on) Modifier else Modifier.border(1.dp, LobbyPalette.Gold.copy(alpha = 0.38f), shape),
                         )
-                        .clickable { onSelect(cat.id) }
+                        .medhaClickable { onSelect(cat.id) }
                         .padding(horizontal = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,

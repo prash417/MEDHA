@@ -2,12 +2,13 @@ package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,11 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +27,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -44,12 +39,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.paras.medha.R
 import studio.paras.medha.core.design.Outfit
+import studio.paras.medha.core.ui.rememberAssetImage
 
 private val HudHeight = 46.dp
-private val ChipWidth = 118.dp
-private val CountWidth = 40.dp
+private val ChipHeight = 34.dp
+private val ChipAspect = 1930f / 491f
+private val ChipWidth = ChipHeight * ChipAspect
+private val ChipCountPadStart = 0.24f
+private val ChipCountPadEnd = 0.24f
+private val ChipPlusW = 0.22f
 private val TileHeight = 36.dp
-private val TileIcon = 16.dp
 private val TokenSize = 28.dp
 private val PlusSize = 22.dp
 private val HudGap = 0.dp
@@ -117,7 +116,6 @@ fun TopGameHud(
     gems: Int,
     level: Int,
     onAdd: () -> Unit,
-    onFriends: () -> Unit,
     onMessages: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -132,24 +130,19 @@ fun TopGameHud(
             horizontalArrangement = Arrangement.spacedBy(HudGap),
         ) {
             CurrencyChip(
-                chip = R.drawable.hud_chip_gold,
-                token = R.drawable.hud_coin,
-                plus = R.drawable.hud_plus,
+                art = R.drawable.hud_coin_bar,
                 value = formatCount(coins),
                 valueColor = Color(0xFFFFF1C2),
                 onAdd = onAdd,
             )
             CurrencyChip(
-                chip = R.drawable.hud_chip_cyan,
-                token = R.drawable.hud_gem,
-                plus = R.drawable.hud_plus_cyan,
+                art = R.drawable.hud_diamond_bar,
                 value = formatCount(gems),
                 valueColor = Color(0xFFB8F6FF),
                 onAdd = onAdd,
             )
-            HudTile(Icons.Filled.Email, "Messages", onMessages, R.drawable.hud_tile_mail, Color(0xFFFFE08A))
-            HudTile(Icons.Filled.Person, "Friends", onFriends, R.drawable.hud_tile_friends, Color(0xFFB8F6FF))
-            HudTile(Icons.Filled.Settings, "Settings", onSettings, R.drawable.hud_tile_settings, Color(0xFFE4C2FF))
+            HudAssetButton("email.png", "Messages", onMessages)
+            HudAssetButton("Settings.png", "Settings", onSettings)
         }
         Box(
             Modifier
@@ -276,9 +269,7 @@ fun TopGameHud(
 
 @Composable
 private fun CurrencyChip(
-    chip: Int,
-    token: Int,
-    plus: Int,
+    art: Int,
     value: String,
     valueColor: Color,
     onAdd: () -> Unit,
@@ -286,78 +277,57 @@ private fun CurrencyChip(
     Box(
         Modifier
             .requiredWidth(ChipWidth)
-            .requiredHeight(HudHeight),
-        contentAlignment = Alignment.CenterStart,
+            .requiredHeight(ChipHeight),
+        contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(chip),
+            painter = painterResource(art),
             contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(ChipWidth, ChipHeight),
         )
-        Row(
-            Modifier
-                .fillMaxSize()
-                .padding(start = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                painter = painterResource(token),
-                contentDescription = null,
-                modifier = Modifier.size(TokenSize),
-            )
-            Text(
-                value,
-                style = TextStyle(
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = valueColor,
-                    shadow = Shadow(valueColor.copy(alpha = 0.45f), Offset.Zero, 8f),
-                    textAlign = TextAlign.Center,
+        Text(
+            value,
+            style = TextStyle(
+                fontFamily = Outfit,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = valueColor,
+                shadow = Shadow(valueColor.copy(alpha = 0.45f), Offset.Zero, 8f),
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = ChipWidth * ChipCountPadStart,
+                    end = ChipWidth * ChipCountPadEnd,
                 ),
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-                modifier = Modifier
-                    .padding(start = 2.dp, end = 4.dp)
-                    .width(CountWidth),
-            )
-            Image(
-                painter = painterResource(plus),
-                contentDescription = "Add",
-                modifier = Modifier
-                    .size(PlusSize)
-                    .clickable(onClick = onAdd),
-            )
-        }
+        )
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(ChipWidth * ChipPlusW)
+                .medhaClickable(onClick = onAdd),
+        )
     }
 }
 
 @Composable
-private fun HudTile(
-    icon: ImageVector,
+private fun HudAssetButton(
+    fileName: String,
     label: String,
     onClick: () -> Unit,
-    tile: Int,
-    tint: Color,
 ) {
-    Box(
-        Modifier
+    Image(
+        bitmap = rememberAssetImage(fileName, trim = true),
+        contentDescription = label,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .padding(start = 4.dp)
             .size(TileHeight)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(tile),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-        )
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(TileIcon),
-        )
-    }
+            .medhaClickable(onClick = onClick),
+    )
 }

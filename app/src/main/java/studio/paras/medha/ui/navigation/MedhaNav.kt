@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 import studio.paras.medha.core.audio.MusicTrack
 import studio.paras.medha.core.audio.Sfx
 import studio.paras.medha.di.AppContainer
+import studio.paras.medha.core.ui.LocalTapSound
 import studio.paras.medha.core.ui.ProvideHudControls
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
@@ -97,6 +99,7 @@ fun MedhaNav(
         Unit
     }
 
+    CompositionLocalProvider(LocalTapSound provides { container.audio.play(Sfx.TAP) }) {
     ProvideHudControls(
         musicOn = profile.musicEnabled,
         sfxOn = profile.sfxEnabled,
@@ -117,11 +120,9 @@ fun MedhaNav(
                         profile = profile,
                         onPlay = { mode, category ->
                             container.playCategory = category
-                            container.audio.play(Sfx.TAP)
                             nav.navigate(Routes.game(mode))
                         },
                         onChallenge = {
-                            container.audio.play(Sfx.TAP)
                             nav.navigate(Routes.CHALLENGE)
                         },
                         onProfile = { nav.navigate(Routes.PROFILE) },
@@ -175,7 +176,13 @@ fun MedhaNav(
                     LeaderboardScreen(profile = profile, onBack = { nav.popBackStack() })
                 }
                 composable(Routes.CHALLENGE) {
-                    ChallengeScreen(onBack = { nav.popBackStack() })
+                    ChallengeScreen(
+                        onBack = {
+                            if (!nav.popBackStack(Routes.HOME, false)) {
+                                nav.navigate(Routes.HOME) { launchSingleTop = true }
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -205,6 +212,7 @@ fun MedhaNav(
                 }
             }
         }
+    }
     }
     }
 }

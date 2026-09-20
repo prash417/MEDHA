@@ -1,7 +1,7 @@
 package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -75,7 +75,7 @@ fun SideNavigation(
                             Modifier
                         },
                     )
-                    .clickable { onSelect(item.dest) }
+                    .medhaClickable { onSelect(item.dest) }
                     .padding(horizontal = 12.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

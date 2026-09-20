@@ -2,7 +2,7 @@ package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -110,7 +110,7 @@ fun GameModeItem(
                     Modifier.border(1.dp, accent.copy(alpha = if (selected) 0.85f else 0.50f), shape)
                 },
             )
-            .clickable(
+            .medhaClickable(
                 interactionSource = interaction,
                 indication = null,
                 role = Role.Button,

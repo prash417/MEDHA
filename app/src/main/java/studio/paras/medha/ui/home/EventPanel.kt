@@ -3,7 +3,7 @@ package studio.paras.medha.ui.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,7 +83,7 @@ private fun EventBanner(
                 ),
             )
             .border(1.dp, event.accent.color().copy(alpha = 0.42f), shape)
-            .clickable(enabled = event.playMode != null, onClick = onClick)
+            .medhaClickable(enabled = event.playMode != null, onClick = onClick)
             .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

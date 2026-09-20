@@ -1,7 +1,7 @@
 package studio.paras.medha.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +61,7 @@ fun StartGameButton(
                     listOf(Color(0xFF8A6420), Color(0xFFF0C85A), Color(0xFFFFF3C4)),
                 ),
             )
-            .clickable(
+            .medhaClickable(
                 interactionSource = interaction,
                 indication = null,
                 role = Role.Button,

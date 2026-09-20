@@ -8,7 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,16 +38,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import studio.paras.medha.R
+import androidx.compose.ui.res.painterResource
 import kotlin.math.max
 
 private val CategoriesHeight = 100.dp
 private val CategoriesPadStart = 16.dp
 private val CategoriesPadEnd = 16.dp
-private val CategoriesPadTop = 0.dp
+private val CategoriesPadTop = 8.dp
 private val CategoriesPadBottom = 0.dp
 private val CatSlotPadStart = 0.012f
 private val CatSlotPadEnd = 0.344f
@@ -174,7 +174,7 @@ fun CategoriesBar(
                             if (on) compositingStrategy = CompositingStrategy.Offscreen
                         }
                         .catShine(shine, on)
-                        .clickable { onSelectCategory(tile.id) },
+                        .medhaClickable { onSelectCategory(tile.id) },
                 )
             }
         }
@@ -187,7 +187,7 @@ fun CategoriesBar(
                     top = maxHeight * CatCuePadTop,
                     bottom = maxHeight * CatCuePadBottom,
                 )
-                .clickable(onClick = onStart),
+                .medhaClickable(onClick = onStart),
             contentAlignment = Alignment.Center,
         ) {
             Image(

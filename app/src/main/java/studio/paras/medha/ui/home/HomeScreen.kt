@@ -6,7 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import studio.paras.medha.core.ui.medhaClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,12 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import studio.paras.medha.R
+import androidx.compose.ui.res.painterResource
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
 
@@ -108,7 +108,6 @@ fun HomeScreen(
             gems = player.gems,
             level = player.level,
             onAdd = { vm.open(LobbyOverlay.VAULT) },
-            onFriends = { vm.open(LobbyOverlay.FRIENDS) },
             onMessages = { vm.open(LobbyOverlay.MESSAGES) },
             onSettings = onSettings,
             modifier = Modifier
@@ -132,7 +131,7 @@ fun HomeScreen(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .width(268.dp)
-                    .clickable { showPickToast = false },
+                    .medhaClickable { showPickToast = false },
             )
         }
     }
