@@ -28,6 +28,8 @@ function arr(values) {
   };
 }
 
+const { hintsFor } = require("./hint_bank.cjs");
+
 function fields(q) {
   return {
     question: str(q.question),
@@ -46,6 +48,7 @@ function fields(q) {
     active: bool(q.active),
     tags: arr(q.tags || [q.category]),
     source: str(q.source || "medha-seed"),
+    hints: arr(hintsFor(q)),
   };
 }
 

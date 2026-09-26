@@ -74,27 +74,10 @@ class LocalQuestionRepository : QuestionRepository {
         count: Int,
         random: Random,
     ): List<QuestionRecord> {
-        val buckets = listOf(
-            Difficulty.EASY,
-            Difficulty.EASY,
-            Difficulty.MEDIUM,
-            Difficulty.MEDIUM,
-            Difficulty.MEDIUM,
-            Difficulty.HARD,
-            Difficulty.HARD,
-            Difficulty.HARD,
-            Difficulty.HARD,
-            Difficulty.EXPERT,
-            Difficulty.EXPERT,
-            Difficulty.EXPERT,
-            Difficulty.EXPERT,
-            Difficulty.EXPERT,
-            Difficulty.EXPERT,
-        )
         val used = mutableSetOf<String>()
         val out = mutableListOf<QuestionRecord>()
         repeat(count) { index ->
-            val want = buckets.getOrElse(index) { Difficulty.EXPERT }
+            val want = PrizeLadder.difficultyForIndex(index)
             val pick = pool.filter { it.id !in used && it.difficulty == want }.randomOrNull(random)
                 ?: pool.filter { it.id !in used }.minByOrNull {
                     kotlin.math.abs(it.difficulty.ordinal - want.ordinal)
@@ -124,7 +107,36 @@ fun QuestionRecord.toPlayable(index: Int, total: Int, prizeIndex: Int, mode: Gam
         prize = prize,
         number = index + 1,
         total = total,
+        hints = hints.map { it.trim() }
+            .filter { it.isNotBlank() && !leaksAnswer(it, correctText()) }
+            .ifEmpty {
+                listOf("Read the question again and drop the option that belongs to a different fact.")
+            },
     )
+}
+
+fun QuestionRecord.correctText(): String = when (correct) {
+    AnswerLetter.A -> optionA
+    AnswerLetter.B -> optionB
+    AnswerLetter.C -> optionC
+    AnswerLetter.D -> optionD
+}
+
+fun leaksAnswer(hint: String, answer: String): Boolean {
+    val raw = answer.trim()
+    val h = hint.lowercase()
+    val a = raw.lowercase()
+    when {
+        raw.length >= 4 && h.contains(a) -> return true
+        raw.length in 1..3 &&
+            (
+                Regex("""\b${Regex.escape(raw)}\b""").containsMatchIn(hint) ||
+                    Regex(""""${Regex.escape(raw)}"""", RegexOption.IGNORE_CASE).containsMatchIn(hint)
+                ) -> return true
+    }
+    if (Regex("""\b(option|lock)\s+[abcd]\b""").containsMatchIn(h)) return true
+    if ("accurate answer" in h || "correct answer is" in h || "the lock is" in h) return true
+    return false
 }
 
 interface PlayerRepository {
@@ -141,7 +153,7 @@ fun PlayerProfile.withResult(result: GameResult): PlayerProfile {
         lastPlayEpochDay == today - 1 -> dailyStreak + 1
         else -> 1
     }
-    val gainedXp = result.correctCount * 24 + if (result.completed) XpRules.forComplete(result.mode) else 0
+    val gainedXp = result.sessionXp
     val newXp = xp + gainedXp
     return copy(
         gamesPlayed = gamesPlayed + 1,

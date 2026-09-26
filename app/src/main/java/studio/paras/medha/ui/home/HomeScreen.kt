@@ -35,9 +35,13 @@ import studio.paras.medha.domain.model.PlayerProfile
 @Composable
 fun HomeScreen(
     profile: PlayerProfile,
+    pingMs: Int? = null,
     onPlay: (GameMode, String?) -> Unit,
-    onChallenge: () -> Unit,
+    onChallenge: (String) -> Unit,
     onProfile: () -> Unit,
+    onAddCoins: () -> Unit,
+    onAddGems: () -> Unit,
+    onMessages: () -> Unit,
     onSettings: () -> Unit,
     onLeaderboard: () -> Unit,
     vm: HomeViewModel = viewModel(),
@@ -79,7 +83,6 @@ fun HomeScreen(
                             when (dest) {
                                 LobbyDest.LEADERBOARD -> onLeaderboard()
                                 LobbyDest.PROFILE -> onProfile()
-                                LobbyDest.SETTINGS -> onSettings()
                                 LobbyDest.HOME -> vm.select(LobbyDest.HOME)
                                 else -> vm.select(dest)
                             }
@@ -95,10 +98,11 @@ fun HomeScreen(
                 selectedId = ui.selectedCategory,
                 onSelectCategory = vm::selectCategory,
                 onStart = {
-                    if (ui.selectedCategory == null) {
-                        showPickToast = true
+                    val category = ui.selectedCategory
+                    if (category == null) {
+                        if (!profile.doNotDisturb) showPickToast = true
                     } else {
-                        onChallenge()
+                        onChallenge(category)
                     }
                 },
             )
@@ -107,9 +111,11 @@ fun HomeScreen(
             coins = player.coins,
             gems = player.gems,
             level = player.level,
-            onAdd = { vm.open(LobbyOverlay.VAULT) },
-            onMessages = { vm.open(LobbyOverlay.MESSAGES) },
+            onAddCoins = onAddCoins,
+            onAddGems = onAddGems,
+            onMessages = onMessages,
             onSettings = onSettings,
+            pingMs = pingMs,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 12.dp, end = 14.dp),
@@ -130,7 +136,7 @@ fun HomeScreen(
                 contentDescription = "Pick any category first",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .width(268.dp)
+                    .width(180.dp)
                     .medhaClickable { showPickToast = false },
             )
         }

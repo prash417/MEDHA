@@ -12,6 +12,7 @@ class SwipeBackController {
             onRouteChanged?.invoke()
         }
     var onRouteChanged: (() -> Unit)? = null
+    var splash: Boolean = false
 
     lateinit var callback: OnBackPressedCallback
 

@@ -3,6 +3,7 @@ package studio.paras.medha.ui.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import studio.paras.medha.core.ui.medhaClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -115,9 +119,11 @@ fun TopGameHud(
     coins: Int,
     gems: Int,
     level: Int,
-    onAdd: () -> Unit,
+    onAddCoins: () -> Unit,
+    onAddGems: () -> Unit,
     onMessages: () -> Unit,
     onSettings: () -> Unit,
+    pingMs: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -125,22 +131,14 @@ fun TopGameHud(
         horizontalAlignment = Alignment.End,
     ) {
         Row(
-            Modifier.height(HudHeight),
+            Modifier
+                .zIndex(2f)
+                .heightIn(min = HudHeight),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(HudGap),
         ) {
-            CurrencyChip(
-                art = R.drawable.hud_coin_bar,
-                value = formatCount(coins),
-                valueColor = Color(0xFFFFF1C2),
-                onAdd = onAdd,
-            )
-            CurrencyChip(
-                art = R.drawable.hud_diamond_bar,
-                value = formatCount(gems),
-                valueColor = Color(0xFFB8F6FF),
-                onAdd = onAdd,
-            )
+            CurrencyHudChips(coins = coins, gems = gems, onAddCoins = onAddCoins, onAddGems = onAddGems)
+            if (pingMs != null) HudPing(pingMs)
             HudAssetButton("email.png", "Messages", onMessages)
             HudAssetButton("Settings.png", "Settings", onSettings)
         }
@@ -268,6 +266,34 @@ fun TopGameHud(
 }
 
 @Composable
+fun CurrencyHudChips(
+    coins: Int,
+    gems: Int,
+    onAddCoins: () -> Unit,
+    onAddGems: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.height(HudHeight),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(HudGap),
+    ) {
+        CurrencyChip(
+            art = R.drawable.hud_coin_bar,
+            value = formatCount(coins),
+            valueColor = Color(0xFFFFF1C2),
+            onAdd = onAddCoins,
+        )
+        CurrencyChip(
+            art = R.drawable.hud_diamond_bar,
+            value = formatCount(gems),
+            valueColor = Color(0xFFB8F6FF),
+            onAdd = onAddGems,
+        )
+    }
+}
+
+@Composable
 private fun CurrencyChip(
     art: Int,
     value: String,
@@ -316,18 +342,40 @@ private fun CurrencyChip(
 }
 
 @Composable
-private fun HudAssetButton(
+internal fun HudPing(ms: Int) {
+    Text(
+        "$ms ms",
+        fontFamily = Outfit,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp,
+        color = Color(0xFFFFE08A),
+        modifier = Modifier.padding(end = 8.dp),
+    )
+}
+
+@Composable
+internal fun HudAssetButton(
     fileName: String,
     label: String,
     onClick: () -> Unit,
+    size: androidx.compose.ui.unit.Dp = TileHeight,
 ) {
-    Image(
-        bitmap = rememberAssetImage(fileName, trim = true),
-        contentDescription = label,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier
-            .padding(start = 4.dp)
-            .size(TileHeight)
-            .medhaClickable(onClick = onClick),
-    )
+    Box(
+        Modifier
+            .padding(start = 2.dp)
+            .size(size)
+            .medhaClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            bitmap = rememberAssetImage(fileName, trim = true),
+            contentDescription = label,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }

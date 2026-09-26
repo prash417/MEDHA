@@ -375,25 +375,33 @@ fun LifelinePad(
     onLifeline: (LifelineKind) -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        LifelineKind.entries.forEach { kind ->
+        LifelineKind.entries.filter {
+            it != LifelineKind.EXTRA_TIME && it != LifelineKind.DARE && it != LifelineKind.PROTECT
+        }.forEach { kind ->
             val used = kind in state.usedLifelines
             val label = when (kind) {
                 LifelineKind.FIFTY_FIFTY -> "50:50"
                 LifelineKind.AUDIENCE -> "PULSE"
                 LifelineKind.EXPERT -> "ILA"
                 LifelineKind.SWITCH -> "SHIFT"
+                LifelineKind.EXTRA_TIME -> "TIME"
+                LifelineKind.DARE -> "DARE"
+                LifelineKind.PROTECT -> "PROTECT"
             }
             val hint = when (kind) {
                 LifelineKind.FIFTY_FIFTY -> "50:50"
                 LifelineKind.AUDIENCE -> "Audience"
                 LifelineKind.EXPERT -> "Expert"
                 LifelineKind.SWITCH -> "Switch"
+                LifelineKind.EXTRA_TIME -> "Extra time"
+                LifelineKind.DARE -> "Dare"
+                LifelineKind.PROTECT -> "Protect"
             }
             EnergyButton(
                 label = label,
                 onClick = { onLifeline(kind) },
                 filled = !used,
-                enabled = !used && state.canLifeline,
+                enabled = !used && state.canLifeline && state.canSpendLifeline,
                 accent = if (used) MedhaColors.Mist else MedhaColors.Teal,
                 modifier = Modifier
                     .weight(1f)

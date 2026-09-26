@@ -3,7 +3,6 @@ package studio.paras.medha.domain.engine
 import studio.paras.medha.domain.model.AnswerLetter
 import studio.paras.medha.domain.model.Difficulty
 import studio.paras.medha.domain.model.ExpertAdvice
-import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.LifelineKind
 import kotlin.random.Random
 
@@ -76,23 +75,30 @@ object LifelineLogic {
     }
 }
 
+data class XpPlace(val level: Int, val into: Int, val need: Int)
+
 object XpRules {
-    fun forCorrect(index: Int, mode: GameMode): Int {
-        val base = 20 + index * 8
-        return if (mode == GameMode.DAILY) (base * 1.25f).toInt() else base
+    fun need(level: Int): Int = 20_000 * level.coerceAtLeast(1)
+
+    fun place(xp: Int): XpPlace {
+        var level = 1
+        var remain = xp.coerceAtLeast(0)
+        while (remain >= need(level)) {
+            remain -= need(level)
+            level++
+        }
+        return XpPlace(level, remain, need(level))
     }
 
-    fun forComplete(mode: GameMode): Int = when (mode) {
-        GameMode.CLASSIC -> 200
-        GameMode.DAILY -> 160
-        GameMode.QUICK -> 80
-        GameMode.PRACTICE -> 40
+    fun levelFor(xp: Int): Int = place(xp).level
+
+    fun addedPercent(startXp: Int, gained: Int): Float {
+        val level = place(startXp).level
+        return gained * 100f / need(level).toFloat()
     }
 
     fun coinsFor(prize: Long, completed: Boolean): Int {
         val fromPrize = (prize / 20_000L).toInt().coerceAtLeast(if (prize > 0) 5 else 0)
         return fromPrize + if (completed) 40 else 0
     }
-
-    fun levelFor(xp: Int): Int = 1 + (xp / 250)
 }

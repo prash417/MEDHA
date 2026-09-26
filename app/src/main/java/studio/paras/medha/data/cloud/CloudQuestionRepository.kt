@@ -4,6 +4,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import studio.paras.medha.data.cache.QuestionBankCache
 import studio.paras.medha.data.repository.LocalQuestionRepository
 import studio.paras.medha.data.repository.QuestionRepository
 import studio.paras.medha.domain.model.AnswerLetter
@@ -17,6 +18,7 @@ import kotlin.random.Random
 
 class CloudQuestionRepository(
     private val local: LocalQuestionRepository,
+    private val bankFile: java.io.File? = null,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(FirebaseApp.getInstance(), "default"),
 ) : QuestionRepository {
 
@@ -28,12 +30,17 @@ class CloudQuestionRepository(
         category: String?,
     ): Result<List<QuestionRecord>> {
         val ladder = PrizeLadder.forMode(mode)
-        val remote = runCatching { fetch(category) }.getOrDefault(emptyList())
-        remote.forEach { cache[it.id] = it }
-        val pool = when {
-            remote.size >= ladder.size -> remote
-            else -> localFallback()
+        var poolSource = cachedPool(category)
+        if (poolSource.size < ladder.size) {
+            val remote = runCatching { fetch(category) }.getOrDefault(emptyList())
+            if (remote.isNotEmpty()) {
+                bankFile?.let { QuestionBankCache.merge(it, remote) }
+                poolSource = remote
+            }
         }
+        if (poolSource.size < ladder.size) poolSource = localFallback()
+        poolSource.forEach { cache[it.id] = it }
+        val pool = poolSource
         if (pool.size < ladder.size) {
             return Result.failure(IllegalStateException("Not enough questions in the chamber."))
         }
@@ -65,6 +72,7 @@ class CloudQuestionRepository(
         val pool = cache.values.filter { it.id != currentId && it.id !in usedIds }
         return pool.filter { it.difficulty == difficulty }.randomOrNull()
             ?: pool.randomOrNull()
+            ?: cache.values.filter { it.id != currentId }.randomOrNull()
             ?: local.replacement(currentId, usedIds, difficulty)
     }
 
@@ -78,21 +86,20 @@ class CloudQuestionRepository(
             .filter { it.active && it.language == "en" }
     }
 
+    private fun cachedPool(category: String?): List<QuestionRecord> {
+        val file = bankFile ?: return emptyList()
+        val all = QuestionBankCache.readFile(file)
+        return QuestionBankCache.forCategory(all, category)
+    }
+
     private fun localFallback(): List<QuestionRecord> =
         studio.paras.medha.data.local.SampleQuestionBank.all.filter { it.active && it.language == "en" }
 
     private fun pick(pool: List<QuestionRecord>, count: Int, random: Random): List<QuestionRecord> {
-        val buckets = listOf(
-            Difficulty.EASY, Difficulty.EASY,
-            Difficulty.MEDIUM, Difficulty.MEDIUM, Difficulty.MEDIUM,
-            Difficulty.HARD, Difficulty.HARD, Difficulty.HARD, Difficulty.HARD,
-            Difficulty.EXPERT, Difficulty.EXPERT, Difficulty.EXPERT,
-            Difficulty.EXPERT, Difficulty.EXPERT, Difficulty.EXPERT,
-        )
         val used = mutableSetOf<String>()
         val out = mutableListOf<QuestionRecord>()
         repeat(count) { index ->
-            val want = buckets.getOrElse(index) { Difficulty.EXPERT }
+            val want = PrizeLadder.difficultyForIndex(index)
             val pick = pool.filter { it.id !in used && it.difficulty == want }.randomOrNull(random)
                 ?: pool.filter { it.id !in used }.minByOrNull {
                     kotlin.math.abs(it.difficulty.ordinal - want.ordinal)
@@ -124,6 +131,8 @@ class CloudQuestionRepository(
             tags = (get("tags") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
             difficulty = difficulty,
             explanation = getString("explanation").orEmpty(),
+            hints = (get("hints") as? List<*>)?.mapNotNull { it as? String }?.filter { it.isNotBlank() }
+                ?: emptyList(),
             prizeLevel = (getLong("prizeLevel") ?: 0L).toInt(),
             language = getString("language") ?: "en",
             active = getBoolean("active") ?: true,

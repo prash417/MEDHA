@@ -1,6 +1,7 @@
 package studio.paras.medha.ui.game
 
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import studio.paras.medha.core.ui.medhaClickable
@@ -57,8 +58,10 @@ fun GameRoute(
     viewModel: GameViewModel,
     onExitToResult: () -> Unit,
     onQuit: () -> Unit,
+    onLeave: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    BackHandler(onBack = onLeave)
     LaunchedEffect(state.phase) {
         if (state.phase == GamePhase.GAME_COMPLETE) onExitToResult()
     }
@@ -242,7 +245,7 @@ private fun HotSeat(
                         color = MedhaColors.Teal,
                     )
                     Text(
-                        state.question?.prompt.orEmpty(),
+                        state.promptShown,
                         style = MedhaTypography.headlineLarge.copy(fontSize = 24.sp, lineHeight = 32.sp),
                         modifier = Modifier
                             .padding(top = 8.dp)
@@ -297,7 +300,7 @@ private fun HotSeat(
                             selected = isSelected && !isWrong && !isCorrect,
                             revealedCorrect = isCorrect,
                             revealedWrong = isWrong,
-                            enabled = state.canAnswer && shown,
+                            enabled = state.answersOpen && state.canAnswer && shown,
                             onClick = { onSelect(letter) },
                             modifier = Modifier
                                 .weight(1f)

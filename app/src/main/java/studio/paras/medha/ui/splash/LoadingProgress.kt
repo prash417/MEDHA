@@ -1,5 +1,7 @@
 package studio.paras.medha.ui.splash
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -47,7 +50,11 @@ fun LoadingProgress(
     modifier: Modifier = Modifier,
     showStudioCredit: Boolean = true,
 ) {
-    val p = state.progress.coerceIn(0f, 1f)
+    val p by animateFloatAsState(
+        targetValue = state.progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 420),
+        label = "splash-progress",
+    )
 
     Column(
         modifier
@@ -104,17 +111,6 @@ fun LoadingProgress(
                             size = Size(fill, (h - inset * 2f).coerceAtLeast(1f)),
                             cornerRadius = CornerRadius((h - inset * 2f) / 2f),
                         )
-                        val shimmer = ((time * 0.85f) % 1.4f) / 1.4f
-                        val sx = fill * shimmer
-                        val sw = (fill * 0.20f).coerceAtLeast(8f)
-                        drawRoundRect(
-                            brush = Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color(0x66FFE9A0), Color.Transparent),
-                            ),
-                            topLeft = Offset(inset + (sx - sw / 2f).coerceAtLeast(0f), top + inset),
-                            size = Size(sw.coerceAtMost(fill), (h - inset * 2f).coerceAtLeast(1f)),
-                            cornerRadius = CornerRadius((h - inset * 2f) / 2f),
-                        )
                     }
                     drawRoundRect(
                         brush = gold,
@@ -125,7 +121,7 @@ fun LoadingProgress(
                     )
                 }
                 FloorText(
-                    text = "${state.percent}%",
+                    text = "${(p * 100f).toInt().coerceIn(0, 100)}%",
                     color = Color(0xFFE8C96A),
                     style = LineStyle,
                     fontWeight = FontWeight.Bold,

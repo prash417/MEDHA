@@ -27,8 +27,12 @@ internal class SwipeBackGuard(
     private var lastBackAt = 0L
     private val hide = Runnable { dismiss() }
 
+    companion object {
+        @Volatile var quiet: Boolean = false
+    }
+
     fun install() {
-        val widthPx = (280 * activity.resources.displayMetrics.density).toInt()
+        val widthPx = (180 * activity.resources.displayMetrics.density).toInt()
         val art = activity.assets.open("Swipe back.png").use { BitmapFactory.decodeStream(it) }
         val image = ImageView(activity).apply {
             setImageBitmap(art)
@@ -74,7 +78,8 @@ internal class SwipeBackGuard(
         val width = activity.window.decorView.width.toFloat().coerceAtLeast(1f)
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                tracking = ev.x <= edge || ev.x >= width - edge
+                val topBand = 78f * density
+                tracking = ev.y > topBand && (ev.x <= edge || ev.x >= width - edge)
                 fromLeft = ev.x <= edge
                 downX = ev.x
                 downY = ev.y
@@ -104,6 +109,7 @@ internal class SwipeBackGuard(
     }
 
     fun interceptFinish(): Boolean {
+        if (swipeBack.splash) return false
         if (!swipeBack.isHome()) return false
         if (armed) return false
         onBack()
@@ -111,6 +117,11 @@ internal class SwipeBackGuard(
     }
 
     fun onBack() {
+        if (swipeBack.splash) {
+            dismiss()
+            activity.finish()
+            return
+        }
         if (!swipeBack.isHome()) {
             dismiss()
             val nav = swipeBack.nav
@@ -124,7 +135,7 @@ internal class SwipeBackGuard(
         val now = SystemClock.uptimeMillis()
         if (now - lastBackAt < 450) return
         lastBackAt = now
-        if (armed) {
+        if (armed || quiet) {
             dismiss()
             activity.moveTaskToBack(true)
         } else {
@@ -139,7 +150,7 @@ internal class SwipeBackGuard(
     }
 
     private fun show() {
-        if (!swipeBack.isHome()) return
+        if (swipeBack.splash || !swipeBack.isHome()) return
         armed = true
         overlay.visibility = View.VISIBLE
         overlay.bringToFront()

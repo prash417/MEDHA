@@ -3,6 +3,10 @@ package studio.paras.medha.core.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -26,12 +30,14 @@ enum class Sfx(val res: Int) {
     TIMER(R.raw.sfx_timer),
 }
 
-enum class MusicTrack(val res: Int) {
-    LOBBY(R.raw.music_final_answer),
-    GAMEPLAY(R.raw.music_gameplay),
-    HIGH_STAKES(R.raw.music_highstakes),
-    VICTORY(R.raw.music_victory),
-    GAME_OVER(R.raw.music_gameover),
+enum class MusicTrack(val assetFile: String? = null, val res: Int = 0, val loop: Boolean = true) {
+    LOBBY(assetFile = "music/music_final_answer.mp3"),
+    GAMEPLAY(res = R.raw.music_gameplay),
+    HIGH_STAKES(res = R.raw.music_highstakes),
+    VICTORY(res = R.raw.music_victory),
+    GAME_OVER(res = R.raw.music_gameover),
+    THINK_CAREFULLY(assetFile = "music/Think Carefully.mp3", loop = false),
+    TICKING_MYSTERY(assetFile = "music/Ticking Mystery.mp3"),
 }
 
 enum class VoiceCue {
@@ -42,12 +48,51 @@ enum class VoiceCue {
     INCORRECT,
 }
 
+sealed class HostBeat {
+    data class Question(val durationMs: Long) : HostBeat()
+    data class Option(val index: Int, val durationMs: Long) : HostBeat()
+}
+
 interface VoiceAnnouncer {
-    fun speak(cue: VoiceCue, detail: String = "")
+    var enabled: Boolean
+    fun speak(cue: VoiceCue, detail: String = "", onDone: () -> Unit = {})
+    fun readQuestion(
+        number: Int,
+        prompt: String,
+        options: List<studio.paras.medha.domain.model.AnswerOption>,
+        onBeat: (HostBeat) -> Unit = {},
+        onDone: () -> Unit = {},
+    )
+    fun prefetchQuestion(
+        number: Int,
+        prompt: String,
+        options: List<studio.paras.medha.domain.model.AnswerOption>,
+    ) = Unit
+    fun stop()
+    /** Stop speech and still finish the current read so the question can continue. */
+    fun hush() { stop() }
 }
 
 class SilentVoice : VoiceAnnouncer {
-    override fun speak(cue: VoiceCue, detail: String) = Unit
+    override var enabled: Boolean = false
+    override fun speak(cue: VoiceCue, detail: String, onDone: () -> Unit) = onDone()
+    override fun readQuestion(
+        number: Int,
+        prompt: String,
+        options: List<studio.paras.medha.domain.model.AnswerOption>,
+        onBeat: (HostBeat) -> Unit,
+        onDone: () -> Unit,
+    ) {
+        val slices = studio.paras.medha.data.cloud.HostBoard.pacedSlices(
+            studio.paras.medha.data.cloud.HostBoard.scripts(number, prompt, options),
+        )
+        onBeat(HostBeat.Question(slices.firstOrNull() ?: 1_600L))
+        options.indices.forEach { index ->
+            onBeat(HostBeat.Option(index, slices.getOrElse(index + 1) { 900L }))
+        }
+        onDone()
+    }
+    override fun stop() = Unit
 }
 
 class MedhaAudio(context: Context) {
@@ -56,6 +101,10 @@ class MedhaAudio(context: Context) {
     private val soundIds = mutableMapOf<Sfx, Int>()
     @Volatile var sfxEnabled: Boolean = true
     @Volatile var musicEnabled: Boolean = true
+    @Volatile var timerMusicEnabled: Boolean = true
+    @Volatile var clockTicksEnabled: Boolean = true
+    @Volatile var hapticsEnabled: Boolean = true
+    @Volatile var reducedMotion: Boolean = false
 
     private val pool: SoundPool = SoundPool.Builder()
         .setMaxStreams(6)
@@ -68,7 +117,10 @@ class MedhaAudio(context: Context) {
         .build()
 
     private var music: ExoPlayer? = null
+    private var voiceClip: ExoPlayer? = null
     private var currentTrack: MusicTrack? = null
+    private var preparedTrack: MusicTrack? = null
+    @Volatile private var ducked: Boolean = false
 
     fun warm() {
         if (loaded.getAndSet(true)) return
@@ -78,41 +130,155 @@ class MedhaAudio(context: Context) {
     }
 
     fun play(sfx: Sfx) {
-        if (!sfxEnabled) return
+        val allowed = if (sfx == Sfx.TIMER) clockTicksEnabled else sfxEnabled
+        if (!allowed) return
         val id = soundIds[sfx] ?: return
         pool.play(id, 1f, 1f, 1, 0, 1f)
     }
 
-    fun setMusic(track: MusicTrack?) {
-        if (track == null || !musicEnabled) {
-            currentTrack = track
+    fun buzz(long: Boolean = false) {
+        if (!hapticsEnabled) return
+        val vibrator = if (Build.VERSION.SDK_INT >= 31) {
+            (appContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        } ?: return
+        val ms = if (long) 46L else 22L
+        if (Build.VERSION.SDK_INT >= 26) {
+            vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(ms)
+        }
+    }
+
+    fun setMusic(track: MusicTrack?, restart: Boolean = false) {
+        if (track == null) {
+            currentTrack = null
+            preparedTrack = null
             music?.pause()
             return
         }
-        if (track == currentTrack && music?.isPlaying == true) return
         currentTrack = track
+        if (!trackAllowed(track)) {
+            music?.pause()
+            return
+        }
         val player = music ?: ExoPlayer.Builder(appContext).build().also { created ->
-            created.repeatMode = Player.REPEAT_MODE_ALL
-            created.volume = 0.62f
+            created.volume = if (ducked) 0.22f else 0.68f
+            created.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_ENDED && currentTrack == MusicTrack.THINK_CAREFULLY) {
+                        setMusic(MusicTrack.TICKING_MYSTERY)
+                    }
+                }
+            })
             music = created
         }
-        player.setMediaItem(MediaItem.fromUri("android.resource://${appContext.packageName}/${track.res}"))
+        val same = track == preparedTrack
+        if (same && player.isPlaying && !restart) return
+        if (same && !restart) {
+            player.play()
+            return
+        }
+        preparedTrack = track
+        player.repeatMode = if (track.loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        player.setMediaItem(mediaItemFor(track))
         player.prepare()
         player.play()
+    }
+
+    /** Background music only. Timer music keeps playing when this is turned off. */
+    fun applyBackgroundMusic(enabled: Boolean) {
+        musicEnabled = enabled
+        val track = currentTrack
+        if (track == MusicTrack.THINK_CAREFULLY && timerMusicEnabled) return
+        if (enabled && track != null) setMusic(track) else if (!enabled) pauseMusic()
+    }
+
+    fun duck(on: Boolean) {
+        ducked = on
+        music?.volume = if (on) 0.22f else 0.68f
+    }
+
+    fun playVoiceClip(
+        uri: String,
+        onReady: (durationMs: Long) -> Unit = {},
+        onDone: () -> Unit,
+    ) {
+        stopVoiceClip()
+        val player = ExoPlayer.Builder(appContext).build().also { voiceClip = it }
+        player.volume = 1f
+        player.repeatMode = Player.REPEAT_MODE_OFF
+        val started = AtomicBoolean(false)
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY && started.compareAndSet(false, true)) {
+                    val dur = player.duration
+                    onReady(if (dur > 0) dur else 0L)
+                }
+                if (state == Player.STATE_ENDED) {
+                    stopVoiceClip()
+                    onDone()
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                stopVoiceClip()
+                onDone()
+            }
+        })
+        player.setMediaItem(MediaItem.fromUri(uri))
+        player.prepare()
+        player.play()
+    }
+
+    fun stopVoiceClip() {
+        voiceClip?.release()
+        voiceClip = null
+    }
+
+    fun haltPlayback() {
+        stopVoiceClip()
+        ducked = false
+        currentTrack = null
+        preparedTrack = null
+        music?.volume = 0.68f
+        music?.pause()
+        music?.stop()
     }
 
     fun pauseMusic() {
         music?.pause()
     }
 
-    fun resumeMusic() {
-        if (musicEnabled && currentTrack != null) music?.play()
+    fun dropTimerMusic() {
+        if (currentTrack != MusicTrack.THINK_CAREFULLY) return
+        if (musicEnabled) setMusic(MusicTrack.TICKING_MYSTERY) else pauseMusic()
     }
+
+    fun resumeMusic() {
+        val track = currentTrack ?: return
+        if (trackAllowed(track)) setMusic(track)
+    }
+
+    private fun trackAllowed(track: MusicTrack): Boolean =
+        if (track == MusicTrack.THINK_CAREFULLY) timerMusicEnabled else musicEnabled
 
     fun release() {
         pool.release()
         music?.release()
         music = null
+        stopVoiceClip()
         loaded.set(false)
+    }
+
+    private fun mediaItemFor(track: MusicTrack): MediaItem {
+        val asset = track.assetFile
+        if (!asset.isNullOrBlank()) {
+            val encoded = android.net.Uri.encode(asset, "/")
+            return MediaItem.fromUri("asset:///$encoded")
+        }
+        return MediaItem.fromUri("android.resource://${appContext.packageName}/${track.res}")
     }
 }

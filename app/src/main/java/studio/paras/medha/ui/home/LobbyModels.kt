@@ -145,16 +145,15 @@ data class LobbyCatalog(
 }
 
 fun PlayerProfile.toLobbyPlayer(): LobbyPlayer {
-    val lvl = maxOf(level, XpRules.levelFor(xp))
-    val span = 250
-    val into = xp % span
+    val place = XpRules.place(xp)
+    val lvl = maxOf(level, place.level)
     return LobbyPlayer(
         name = displayName.ifBlank { "GUEST" },
         avatarId = avatarId,
         level = lvl,
-        xpProgress = into / span.toFloat(),
-        xpInto = into,
-        xpNeed = span,
+        xpProgress = place.into / place.need.toFloat(),
+        xpInto = place.into,
+        xpNeed = place.need,
         vip = lvl >= 10,
         coins = coins,
         gems = gems,

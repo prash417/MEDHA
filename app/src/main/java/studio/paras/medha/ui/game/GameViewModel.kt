@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,10 +12,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
 import studio.paras.medha.core.analytics.AnalyticsEvents
+import studio.paras.medha.core.audio.HostBeat
 import studio.paras.medha.core.audio.MusicTrack
 import studio.paras.medha.core.audio.Sfx
 import studio.paras.medha.core.audio.VoiceCue
+import studio.paras.medha.data.repository.leaksAnswer
 import studio.paras.medha.data.repository.toPlayable
 import studio.paras.medha.di.AppContainer
 import studio.paras.medha.domain.engine.LifelineLogic
@@ -29,6 +35,8 @@ import studio.paras.medha.domain.model.PlayableQuestion
 import studio.paras.medha.domain.model.PrizeLadder
 import studio.paras.medha.domain.model.PrizeRung
 import studio.paras.medha.domain.model.QuestionRecord
+
+data class XpAward(val question: Int, val amount: Int, val lifeline: Boolean)
 
 data class GameUiState(
     val mode: GameMode = GameMode.CLASSIC,
@@ -45,15 +53,32 @@ data class GameUiState(
     val index: Int = 0,
     val total: Int = 15,
     val correctCount: Int = 0,
+    val earnedXp: Int = 0,
+    val xpAwards: List<XpAward> = emptyList(),
+    val startXp: Int = 0,
     val error: String? = null,
     val ladderOpen: Boolean = false,
     val reducedMotion: Boolean = false,
     val secondsLeft: Int? = null,
     val timerTotal: Int? = null,
-    val optionsVisible: Int = 4,
+    val optionsVisible: Int = 0,
+    val questionPaceMs: Long = 0L,
+    val optionPaceMs: List<Long> = emptyList(),
+    val hintText: String? = null,
+    val hintUsed: Boolean = false,
+    val promptShown: String = "",
+    val resultPrize: String? = null,
+    val dareOffer: Boolean = false,
+    val dareArmed: Boolean = false,
+    val protectArmed: Boolean = false,
+    val lifelinesOnQuestion: Int = 0,
 ) {
     val canAnswer: Boolean get() = phase == GamePhase.QUESTION_DISPLAY
+    /** Question text and all four options are on screen, and the clock has started when this question is timed. */
+    val answersOpen: Boolean
+        get() = optionsVisible >= 4 && promptShown.isNotBlank() && (timerTotal == null || secondsLeft != null)
     val canLifeline: Boolean get() = phase == GamePhase.QUESTION_DISPLAY
+    val canSpendLifeline: Boolean get() = lifelinesOnQuestion < PrizeLadder.lifelineSlots(index)
     val playingFor: PrizeRung? get() = question?.prize
     val lockedIn: PrizeRung? get() = PrizeLadder.guaranteed(correctCount, mode)
     val walkAwayPrize: PrizeRung? get() = PrizeLadder.lastCleared(correctCount, mode)
@@ -66,7 +91,14 @@ data class GameUiState(
 class GameViewModel(
     private val mode: GameMode,
     private val container: AppContainer,
+    private val stepBackOnTimeout: Boolean = false,
 ) : ViewModel() {
+
+    companion object {
+        private const val DareSkip = 1
+        private const val DareBack = 3
+        private const val DareSeconds = 15
+    }
 
     private val _state = MutableStateFlow(GameUiState(mode = mode, phase = GamePhase.LOADING, total = mode.questionCount))
     val state: StateFlow<GameUiState> = _state.asStateFlow()
@@ -78,19 +110,33 @@ class GameViewModel(
     private var heartbeat: Job? = null
     private var timer: Job? = null
     private var remainingMs: Long = 0L
+    @Volatile private var left = false
+    private var sessionOpen = false
+    private var runId = 0
 
     init {
         start()
     }
 
     private fun start() {
+        if (sessionOpen) return
+        sessionOpen = true
+        left = false
+        val run = ++runId
         viewModelScope.launch {
             startedAt = System.currentTimeMillis()
-            _state.update { it.copy(phase = GamePhase.LOADING, error = null) }
+            if (run != runId) return@launch
+            _state.value = GameUiState(phase = GamePhase.LOADING)
             val profile = container.playerStore.current()
+            if (run != runId) return@launch
+            _state.update { it.copy(startXp = profile.xp) }
             container.audio.sfxEnabled = profile.sfxEnabled
             container.audio.musicEnabled = profile.musicEnabled
-            container.audio.setMusic(MusicTrack.LOBBY)
+            container.audio.timerMusicEnabled = profile.timerMusicEnabled
+            container.audio.clockTicksEnabled = profile.clockTicksEnabled
+            container.audio.hapticsEnabled = profile.hapticsEnabled
+            container.audio.reducedMotion = profile.reducedMotion
+            container.voice.enabled = profile.voiceEnabled
             container.analytics.track(
                 if (mode == GameMode.DAILY) AnalyticsEvents.DAILY_STARTED else AnalyticsEvents.GAME_STARTED,
                 mapOf("mode" to mode.id),
@@ -98,39 +144,61 @@ class GameViewModel(
             val result = container.questions.loadSession(mode, profile.seenQuestionIds, container.playCategory)
             result.fold(
                 onSuccess = { list ->
+                    if (run != runId) return@fold
                     if (list.isEmpty()) {
                         _state.update { it.copy(phase = GamePhase.IDLE, error = "No questions are ready. Try again shortly.") }
                     } else {
                         records = list
                         usedIds = list.map { q -> q.id }.toMutableSet()
-                        _state.update {
-                            it.copy(
-                                phase = GamePhase.SEAT_INTRO,
-                                playerName = profile.displayName.ifBlank { "Guest" },
-                                total = list.size,
-                                reducedMotion = false,
-                            )
-                        }
+                        prefetchVoice(0)
+                        prefetchVoice(1)
+                        _state.value = GameUiState(
+                            mode = mode,
+                            phase = GamePhase.SEAT_INTRO,
+                            playerName = profile.displayName.ifBlank { "Guest" },
+                            total = list.size,
+                            reducedMotion = profile.reducedMotion,
+                            startXp = profile.xp,
+                        )
                     }
                 },
                 onFailure = { e ->
+                    if (run != runId) return@fold
                     _state.update { it.copy(phase = GamePhase.IDLE, error = e.message ?: "Could not load questions.") }
                 },
             )
         }
     }
 
+    fun restartFresh() {
+        heartbeat?.cancel()
+        sequence?.cancel()
+        stopClock()
+        container.voice.stop()
+        left = true
+        sessionOpen = false
+        runId++
+        _state.value = GameUiState(mode = mode, phase = GamePhase.LOADING, total = mode.questionCount)
+        start()
+    }
+
+    fun ensureRunning() {
+        if (sessionOpen) return
+        start()
+    }
+
     fun takeTheSeat() {
-        if (_state.value.phase != GamePhase.SEAT_INTRO) return
-        container.audio.play(Sfx.LAUNCH)
-        container.audio.setMusic(MusicTrack.GAMEPLAY)
+        if (left || _state.value.phase != GamePhase.SEAT_INTRO) return
+        container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
         stingThenShow(0)
     }
 
     private fun stingThenShow(index: Int) {
+        if (left) return
         stopClock()
         heartbeat?.cancel()
         sequence?.cancel()
+        container.voice.stop()
         val record = records.getOrNull(index) ?: return finish(GameOutcome.WON)
         val playable = record.toPlayable(index, records.size, index, mode)
         val seconds = PrizeLadder.timerSeconds(index, mode)
@@ -147,59 +215,123 @@ class GameViewModel(
                 index = index,
                 total = records.size,
                 ladderOpen = false,
-                secondsLeft = seconds,
+                secondsLeft = null,
                 timerTotal = seconds,
                 optionsVisible = 0,
+                questionPaceMs = 0L,
+                optionPaceMs = emptyList(),
+                hintText = null,
+                promptShown = "",
+                dareOffer = false,
+                dareArmed = false,
+                protectArmed = it.protectArmed,
+                lifelinesOnQuestion = if (index == it.index) it.lifelinesOnQuestion else 0,
             )
         }
-        if (index >= 10) container.audio.setMusic(MusicTrack.HIGH_STAKES)
-        container.audio.play(Sfx.QUESTION)
-        container.voice.speak(VoiceCue.QUESTION_NUMBER, "${index + 1}")
-        sequence = viewModelScope.launch {
-            val pause = if (_state.value.reducedMotion) 200L else 1400L
-            delay(pause)
-            _state.update { it.copy(phase = GamePhase.QUESTION_DISPLAY, optionsVisible = 0) }
-            if (!_state.value.reducedMotion) {
-                repeat(4) { n ->
-                    delay(90)
-                    _state.update { it.copy(optionsVisible = n + 1) }
+        container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
+        val fullPrompt = playable.prompt
+        val shown = index
+        _state.update { it.copy(phase = GamePhase.QUESTION_DISPLAY, optionsVisible = 0, promptShown = "") }
+        prefetchVoice(index + 1)
+        prefetchVoice(index + 2)
+        container.voice.readQuestion(
+            number = index + 1,
+            prompt = playable.prompt,
+            options = playable.options,
+            onBeat = { beat ->
+                when (beat) {
+                    is HostBeat.Question -> _state.update {
+                        it.copy(
+                            promptShown = fullPrompt,
+                            questionPaceMs = beat.durationMs.coerceAtLeast(1L),
+                        )
+                    }
+                    is HostBeat.Option -> _state.update {
+                        val paces = it.optionPaceMs.toMutableList()
+                        while (paces.size <= beat.index) paces += 0L
+                        paces[beat.index] = beat.durationMs.coerceAtLeast(1L)
+                        it.copy(
+                            promptShown = fullPrompt,
+                            optionsVisible = maxOf(it.optionsVisible, beat.index + 1),
+                            optionPaceMs = paces,
+                        )
+                    }
                 }
-            } else {
-                _state.update { it.copy(optionsVisible = 4) }
+            },
+        ) {
+            viewModelScope.launch {
+                val now = _state.value
+                if (!left && now.index == shown && now.phase.clockLive()) {
+                    _state.update { it.copy(promptShown = fullPrompt, optionsVisible = 4) }
+                    if (now.secondsLeft == null) startClock(reset = true)
+                }
             }
-            startClock(reset = true)
         }
     }
 
+    private fun prefetchVoice(index: Int) {
+        val record = records.getOrNull(index) ?: return
+        val playable = record.toPlayable(index, records.size, index, mode)
+        container.voice.prefetchQuestion(index + 1, playable.prompt, playable.options)
+    }
+
+    private fun countsXp(): Boolean = container.awardXp && mode != GameMode.PRACTICE
+
     private fun startClock(reset: Boolean = true) {
+        if (left) return
         val total = _state.value.timerTotal ?: return
         if (reset) remainingMs = total * 1000L
+        val secsNow = ((remainingMs + 999) / 1000).toInt()
+        _state.update { it.copy(secondsLeft = secsNow) }
+        cueTimerMusic(secsNow, restart = reset)
         timer?.cancel()
         timer = viewModelScope.launch {
-            while (isActive && remainingMs > 0 && _state.value.phase == GamePhase.QUESTION_DISPLAY) {
+            while (isActive && remainingMs > 0 && _state.value.phase.clockLive()) {
                 delay(250)
                 remainingMs -= 250
                 val secs = ((remainingMs + 999) / 1000).toInt().coerceAtLeast(0)
                 val prev = _state.value.secondsLeft
                 if (secs != prev) {
                     _state.update { it.copy(secondsLeft = secs) }
-                    if (secs in 1..5) container.audio.play(Sfx.TIMER)
+                    val hitThirty = secs == 30 && (prev ?: 0) > 30
+                    cueTimerMusic(secs, restart = hitThirty)
+                    if (secs in 1..5 && container.audio.clockTicksEnabled) container.audio.play(Sfx.TIMER)
                 }
             }
-            if (_state.value.phase == GamePhase.QUESTION_DISPLAY && remainingMs <= 0) {
+            if (_state.value.phase.clockLive() && remainingMs <= 0) {
+                timer = null
+                remainingMs = 0
                 onTimeout()
             }
         }
     }
 
+    private fun cueTimerMusic(secondsLeft: Int, restart: Boolean = false) {
+        if (left) return
+        if (_state.value.index >= 10) return
+        if (_state.value.timerTotal == null) return
+        if (secondsLeft <= 30 && container.audio.timerMusicEnabled) {
+            container.audio.setMusic(MusicTrack.THINK_CAREFULLY, restart = restart)
+        } else if (container.audio.musicEnabled) {
+            container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
+        }
+    }
+
+    private fun restorePageMusic() {
+        if (left) return
+        container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
+    }
+
     private fun pauseClock() {
         timer?.cancel()
+        restorePageMusic()
     }
 
     private fun resumeClock() {
         if (_state.value.timerTotal != null && remainingMs > 0) {
             _state.update { it.copy(phase = GamePhase.QUESTION_DISPLAY) }
             startClock(reset = false)
+            container.audio.resumeMusic()
         } else {
             _state.update { it.copy(phase = GamePhase.QUESTION_DISPLAY) }
         }
@@ -210,20 +342,27 @@ class GameViewModel(
         timer = null
     }
 
+    private fun GamePhase.clockLive(): Boolean =
+        this == GamePhase.QUESTION_DISPLAY || this == GamePhase.CONFIRMING
+
     fun select(letter: AnswerLetter) {
         val s = _state.value
-        if (!s.canAnswer || letter in s.hidden) return
-        pauseClock()
-        container.audio.play(Sfx.SELECT)
+        if (!s.answersOpen || !s.phase.clockLive() || letter in s.hidden) return
+        if (s.phase == GamePhase.CONFIRMING && s.selected == letter) return
+        container.voice.stop()
         container.voice.speak(VoiceCue.OPTION_SELECTED, letter.name)
-        container.voice.speak(VoiceCue.FINAL_ANSWER)
-        _state.update { it.copy(phase = GamePhase.CONFIRMING, selected = letter) }
+        _state.update {
+            it.copy(
+                phase = GamePhase.CONFIRMING,
+                selected = letter,
+                promptShown = it.question?.prompt.orEmpty(),
+            )
+        }
     }
 
     fun changeAnswer() {
         if (_state.value.phase != GamePhase.CONFIRMING) return
-        _state.update { it.copy(selected = null) }
-        resumeClock()
+        _state.update { it.copy(selected = null, phase = GamePhase.QUESTION_DISPLAY) }
     }
 
     fun sealAnswer() {
@@ -231,8 +370,12 @@ class GameViewModel(
         if (s.phase != GamePhase.CONFIRMING || s.selected == null) return
         stopClock()
         sequence?.cancel()
+        container.voice.stop()
+        restorePageMusic()
+        container.voice.speak(VoiceCue.FINAL_ANSWER)
+        container.audio.buzz()
         _state.update { it.copy(phase = GamePhase.ANSWER_SELECTED) }
-        val wait = if (s.reducedMotion) 180L else if (s.isHighStakes) 1600L else 1100L
+        val wait = if (container.audio.reducedMotion) 180L else if (s.isHighStakes) 1600L else 1100L
         heartbeat?.cancel()
         heartbeat = viewModelScope.launch {
             delay(160)
@@ -246,20 +389,44 @@ class GameViewModel(
         }
     }
 
-    private suspend fun onTimeout() {
-        stopClock()
-        val s = _state.value
-        val record = records.getOrNull(s.index)
-        delay(if (s.reducedMotion) 80L else 400L)
-        container.audio.play(Sfx.WRONG)
+    private fun onTimeout() {
+        if (left || _state.value.phase == GamePhase.GAME_COMPLETE) return
+        container.voice.stop()
+        restorePageMusic()
         _state.update {
             it.copy(
-                phase = GamePhase.WRONG,
+                secondsLeft = 0,
                 selected = null,
-                correct = record?.correct,
-                explanation = record?.explanation ?: "Time ran out before an answer was sealed.",
+                explanation = "Time ran out before an answer was sealed.",
             )
         }
+        if (_state.value.protectArmed) {
+            absorbProtect()
+            return
+        }
+        if (_state.value.dareArmed) {
+            applyDareFail()
+        } else if (stepBackOnTimeout && _state.value.index > 0) {
+            stepBackQuestion()
+        } else {
+            finish(GameOutcome.DROPPED)
+        }
+    }
+
+    private fun stepBackQuestion() {
+        val s = _state.value
+        val back = (s.index - 1).coerceAtLeast(0)
+        val last = s.xpAwards.lastOrNull()
+        val drop = if (last != null && last.question == s.index) last.amount else 0
+        _state.update {
+            it.copy(
+                correctCount = back,
+                earnedXp = (it.earnedXp - drop).coerceAtLeast(0),
+                xpAwards = if (drop > 0) it.xpAwards.dropLast(1) else it.xpAwards,
+                dareArmed = false,
+            )
+        }
+        stingThenShow(back)
     }
 
     private suspend fun reveal() {
@@ -272,34 +439,39 @@ class GameViewModel(
             _state.update { it.copy(error = err.message ?: "Could not verify that answer.", phase = GamePhase.QUESTION_DISPLAY) }
             return
         }
-        delay(if (s.reducedMotion) 80L else 320L)
+        delay(if (container.audio.reducedMotion) 80L else 320L)
         container.analytics.track(AnalyticsEvents.QUESTION_ANSWERED, mapOf("correct" to verdict.correct.toString()))
         if (verdict.correct) {
-            container.audio.play(Sfx.CORRECT)
-            container.audio.play(Sfx.PRIZE)
-            container.voice.speak(VoiceCue.CORRECT)
             container.analytics.track(AnalyticsEvents.ANSWER_CORRECT)
+            container.audio.buzz()
+            val gain = if (!countsXp()) 0 else if (s.lifelinesOnQuestion > 0) 50 else 100
+            val award = XpAward(question = s.index + 1, amount = gain, lifeline = s.lifelinesOnQuestion > 0)
             _state.update {
                 it.copy(
                     phase = GamePhase.CORRECT,
                     correct = verdict.correctLetter,
                     explanation = verdict.explanation,
                     correctCount = it.correctCount + 1,
+                    earnedXp = it.earnedXp + gain,
+                    xpAwards = if (gain > 0) it.xpAwards + award else it.xpAwards,
                 )
             }
-            delay(if (s.reducedMotion) 450L else 1700L)
+            awaitHost(VoiceCue.CORRECT)
+            if (left) return
+            if (s.dareArmed) {
+                applyDareSkip(s.index, s.correctCount + 1)
+                return
+            }
             val next = s.index + 1
             if (next >= records.size) {
                 finish(GameOutcome.WON)
             } else {
                 _state.update { it.copy(phase = GamePhase.NEXT_QUESTION) }
-                container.audio.play(Sfx.PROGRESS)
-                delay(if (s.reducedMotion) 120L else 420L)
                 stingThenShow(next)
             }
         } else {
             container.audio.play(Sfx.WRONG)
-            container.voice.speak(VoiceCue.INCORRECT)
+            container.audio.buzz(long = true)
             container.analytics.track(AnalyticsEvents.ANSWER_WRONG)
             _state.update {
                 it.copy(
@@ -308,6 +480,37 @@ class GameViewModel(
                     explanation = verdict.explanation,
                 )
             }
+            awaitHost(VoiceCue.INCORRECT, spokenOption(verdict.correctLetter, s.question))
+            if (left) return
+            if (absorbProtect()) return
+            if (s.dareArmed) {
+                applyDareFail()
+            } else {
+                finish(GameOutcome.DROPPED)
+            }
+        }
+    }
+
+    private fun spokenOption(
+        letter: AnswerLetter,
+        question: PlayableQuestion? = _state.value.question,
+    ): String {
+        val text = question?.options?.find { it.letter == letter }?.text?.trim()?.trimEnd('.', ' ') ?: ""
+        return if (text.isBlank()) "option ${letter.name}" else "option ${letter.name}, $text"
+    }
+
+    private suspend fun awaitHost(cue: VoiceCue, detail: String = "") {
+        try {
+            withTimeout(18_000) {
+                suspendCancellableCoroutine { cont ->
+                    container.voice.speak(cue, detail) {
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                    cont.invokeOnCancellation { container.voice.stop() }
+                }
+            }
+        } catch (_: TimeoutCancellationException) {
+            container.voice.stop()
         }
     }
 
@@ -336,17 +539,63 @@ class GameViewModel(
         finish(GameOutcome.WALKED_AWAY)
     }
 
+    fun useHint() {
+        val s = _state.value
+        if (!s.answersOpen || !s.canLifeline || s.hintUsed || !s.canSpendLifeline) return
+        val record = records.getOrNull(s.index) ?: return
+        val answer = when (record.correct) {
+            AnswerLetter.A -> record.optionA
+            AnswerLetter.B -> record.optionB
+            AnswerLetter.C -> record.optionC
+            AnswerLetter.D -> record.optionD
+        }
+        val pool = s.question?.hints.orEmpty()
+            .map { it.trim() }
+            .filter { it.isNotBlank() && !leaksAnswer(it, answer) }
+            .ifEmpty {
+                listOf("Read the question again and drop the option that belongs to a different fact.")
+            }
+        val one = pool.random()
+        container.audio.play(Sfx.LIFELINE)
+        container.analytics.track(AnalyticsEvents.LIFELINE_USED, mapOf("kind" to "HINT"))
+        _state.update { it.copy(hintUsed = true, hintText = one, lifelinesOnQuestion = it.lifelinesOnQuestion + 1) }
+    }
+
+    fun dismissHint() {
+        if (_state.value.hintText == null) return
+        _state.update { it.copy(hintText = null) }
+    }
+
     fun useLifeline(kind: LifelineKind) {
         val s = _state.value
-        if (!s.canLifeline) return
+        if (!s.answersOpen) return
+        val thinking = s.phase in setOf(GamePhase.QUESTION_DISPLAY, GamePhase.CONFIRMING)
+        val extraReady = kind == LifelineKind.EXTRA_TIME && thinking && s.timerTotal != null
+        val lateReady = kind in setOf(
+            LifelineKind.FIFTY_FIFTY,
+            LifelineKind.SWITCH,
+            LifelineKind.PROTECT,
+        ) && thinking
+        if (!s.canLifeline && !extraReady && !lateReady) return
         if (kind in s.usedLifelines) return
+        if (kind == LifelineKind.EXTRA_TIME && s.timerTotal == null) return
+        if (!s.canSpendLifeline) return
         val record = records.getOrNull(s.index) ?: return
         container.audio.play(Sfx.LIFELINE)
         container.analytics.track(AnalyticsEvents.LIFELINE_USED, mapOf("kind" to kind.name))
         when (kind) {
             LifelineKind.FIFTY_FIFTY -> {
                 val hidden = LifelineLogic.fiftyFifty(record.correct, s.hidden)
-                _state.update { it.copy(hidden = hidden, usedLifelines = it.usedLifelines + kind) }
+                val lostPick = s.selected != null && s.selected in hidden
+                _state.update {
+                    it.copy(
+                        hidden = hidden,
+                        usedLifelines = it.usedLifelines + kind,
+                        selected = if (lostPick) null else it.selected,
+                        phase = if (lostPick) GamePhase.QUESTION_DISPLAY else it.phase,
+                    )
+                }
+                if (lostPick) resumeClock()
             }
             LifelineKind.AUDIENCE -> {
                 val bars = LifelineLogic.audienceBars(record.correct, record.difficulty, s.hidden)
@@ -368,6 +617,148 @@ class GameViewModel(
                 stopClock()
                 stingThenShow(s.index)
             }
+            LifelineKind.EXTRA_TIME -> addExtraTime()
+            LifelineKind.DARE -> Unit
+            LifelineKind.PROTECT -> {
+                _state.update {
+                    it.copy(
+                        protectArmed = true,
+                        usedLifelines = it.usedLifelines + kind,
+                    )
+                }
+            }
+        }
+        if (kind != LifelineKind.DARE) {
+            _state.update { it.copy(lifelinesOnQuestion = it.lifelinesOnQuestion + 1) }
+        }
+    }
+
+    fun offerDare() {
+        val s = _state.value
+        if (!s.answersOpen) return
+        if (s.dareOffer || s.dareArmed) return
+        if (LifelineKind.DARE in s.usedLifelines) return
+        if (s.phase !in setOf(GamePhase.QUESTION_DISPLAY, GamePhase.CONFIRMING)) return
+        if (!s.canSpendLifeline) return
+        if (s.phase == GamePhase.QUESTION_DISPLAY) pauseClock()
+        _state.update { it.copy(dareOffer = true, hintText = null) }
+    }
+
+    fun confirmDare() {
+        val s = _state.value
+        if (!s.dareOffer || LifelineKind.DARE in s.usedLifelines) return
+        if (!s.canSpendLifeline) return
+        container.audio.play(Sfx.LIFELINE)
+        container.analytics.track(AnalyticsEvents.LIFELINE_USED, mapOf("kind" to "DARE"))
+        _state.update {
+            it.copy(
+                dareOffer = false,
+                dareArmed = true,
+                usedLifelines = it.usedLifelines + LifelineKind.DARE,
+                lifelinesOnQuestion = it.lifelinesOnQuestion + 1,
+            )
+        }
+        tightenDareClock()
+        if (s.phase == GamePhase.QUESTION_DISPLAY) resumeClock()
+    }
+
+    fun dismissDare() {
+        val s = _state.value
+        if (!s.dareOffer) return
+        _state.update { it.copy(dareOffer = false) }
+        if (s.phase == GamePhase.QUESTION_DISPLAY) resumeClock()
+    }
+
+    private fun applyDareSkip(fromIndex: Int, cleared: Int) {
+        _state.update { it.copy(dareArmed = false) }
+        val skipTo = fromIndex + 1 + DareSkip
+        if (skipTo >= records.size) {
+            _state.update { it.copy(correctCount = records.size) }
+            finish(GameOutcome.WON)
+            return
+        }
+        _state.update { it.copy(correctCount = cleared + 1, phase = GamePhase.NEXT_QUESTION) }
+        stingThenShow(skipTo)
+    }
+
+    private fun applyDareFail() {
+        val s = _state.value
+        val back = s.index - DareBack
+        _state.update { it.copy(dareArmed = false) }
+        if (back < 0) {
+            finish(GameOutcome.DROPPED)
+            return
+        }
+        _state.update {
+            it.copy(
+                correctCount = (s.correctCount - DareBack).coerceAtLeast(0),
+                phase = GamePhase.NEXT_QUESTION,
+            )
+        }
+        stingThenShow(back)
+    }
+
+    private fun tightenDareClock() {
+        val s = _state.value
+        val total = s.timerTotal ?: return
+        val capMs = DareSeconds * 1000L
+        if (s.secondsLeft == null) {
+            _state.update { it.copy(timerTotal = DareSeconds.coerceAtMost(total)) }
+            return
+        }
+        if (remainingMs > capMs) remainingMs = capMs
+        val secs = ((remainingMs + 999) / 1000).toInt().coerceAtLeast(0)
+        _state.update {
+            it.copy(
+                timerTotal = DareSeconds.coerceAtMost(total).coerceAtLeast(secs),
+                secondsLeft = secs,
+            )
+        }
+    }
+
+    private fun absorbProtect(): Boolean {
+        val s = _state.value
+        if (!s.protectArmed) return false
+        val record = records.getOrNull(s.index)
+        val difficulty = record?.difficulty ?: PrizeLadder.difficultyForIndex(s.index)
+        val currentId = record?.id.orEmpty()
+        val replacement = container.questions.replacement(currentId, usedIds, difficulty)
+        if (replacement != null && replacement.id != currentId) {
+            usedIds += replacement.id
+            records = records.toMutableList().also { it[s.index] = replacement }
+        }
+        _state.update {
+            it.copy(
+                protectArmed = false,
+                selected = null,
+                correct = null,
+                explanation = null,
+                phase = GamePhase.NEXT_QUESTION,
+            )
+        }
+        stingThenShow(s.index)
+        return true
+    }
+
+    private fun addExtraTime() {
+        val s = _state.value
+        val total = s.timerTotal ?: return
+        val clockLive = s.secondsLeft != null
+        if (clockLive) remainingMs += 30_000L
+        val secs = if (clockLive) {
+            ((remainingMs + 999) / 1000).toInt().coerceAtLeast(0)
+        } else {
+            s.secondsLeft
+        }
+        _state.update {
+            it.copy(
+                timerTotal = total + 30,
+                secondsLeft = secs,
+                usedLifelines = it.usedLifelines + LifelineKind.EXTRA_TIME,
+            )
+        }
+        if (clockLive && s.phase == GamePhase.QUESTION_DISPLAY) {
+            cueTimerMusic(secs ?: 0)
         }
     }
 
@@ -379,8 +770,21 @@ class GameViewModel(
         _state.update { it.copy(error = null) }
     }
 
+    fun leaveSession() {
+        if (left) return
+        left = true
+        sessionOpen = false
+        heartbeat?.cancel()
+        sequence?.cancel()
+        stopClock()
+        container.voice.stop()
+        if (_state.value.phase != GamePhase.GAME_COMPLETE) {
+            container.audio.haltPlayback()
+        }
+    }
+
     fun abandon() {
-        if (_state.value.phase == GamePhase.GAME_COMPLETE) return
+        if (left || _state.value.phase == GamePhase.GAME_COMPLETE) return
         if (_state.value.walkAwayPrize != null && _state.value.phase in setOf(
                 GamePhase.QUESTION_DISPLAY, GamePhase.CONFIRMING, GamePhase.QUESTION_STING,
             )
@@ -393,9 +797,11 @@ class GameViewModel(
     }
 
     private fun finish(outcome: GameOutcome) {
+        if (left || _state.value.phase == GamePhase.GAME_COMPLETE) return
         heartbeat?.cancel()
         sequence?.cancel()
         stopClock()
+        container.voice.stop()
         val s = _state.value
         val prize = when (outcome) {
             GameOutcome.WON -> PrizeLadder.forMode(mode).last()
@@ -416,7 +822,7 @@ class GameViewModel(
             lastCorrectText = s.correct?.let { letter ->
                 s.question?.options?.find { it.letter == letter }?.text
             },
-            riskedLabel = s.playingFor?.label,
+            sessionXp = if (countsXp()) s.earnedXp else 0,
         )
         container.lastResult = result
         viewModelScope.launch {
@@ -443,25 +849,29 @@ class GameViewModel(
                 container.audio.play(Sfx.PRIZE)
             }
             GameOutcome.DROPPED -> {
-                container.audio.setMusic(MusicTrack.GAME_OVER)
-                container.audio.play(Sfx.GAME_OVER)
+                container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
             }
         }
-        _state.update { it.copy(phase = GamePhase.GAME_COMPLETE) }
+        _state.update {
+            it.copy(
+                phase = GamePhase.GAME_COMPLETE,
+                resultPrize = prize?.label ?: "₹0",
+            )
+        }
     }
 
     override fun onCleared() {
-        heartbeat?.cancel()
-        sequence?.cancel()
-        stopClock()
+        leaveSession()
         super.onCleared()
     }
 
     class Factory(
         private val mode: GameMode,
         private val container: AppContainer,
+        private val stepBackOnTimeout: Boolean = false,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = GameViewModel(mode, container) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            GameViewModel(mode, container, stepBackOnTimeout) as T
     }
 }

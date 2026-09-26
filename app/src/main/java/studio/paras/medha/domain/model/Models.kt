@@ -17,7 +17,7 @@ enum class Difficulty { EASY, MEDIUM, HARD, EXPERT }
 
 enum class AnswerLetter { A, B, C, D }
 
-enum class LifelineKind { FIFTY_FIFTY, AUDIENCE, EXPERT, SWITCH }
+enum class LifelineKind { FIFTY_FIFTY, AUDIENCE, EXPERT, SWITCH, EXTRA_TIME, DARE, PROTECT }
 
 enum class GamePhase {
     IDLE,
@@ -66,6 +66,7 @@ data class QuestionRecord(
     val tags: List<String>,
     val difficulty: Difficulty,
     val explanation: String,
+    val hints: List<String> = emptyList(),
     val prizeLevel: Int,
     val language: String = "en",
     val active: Boolean = true,
@@ -91,6 +92,7 @@ data class PlayableQuestion(
     val prize: PrizeRung,
     val number: Int,
     val total: Int,
+    val hints: List<String> = emptyList(),
 )
 
 data class ExpertAdvice(
@@ -121,6 +123,7 @@ data class GameResult(
     val lastExplanation: String?,
     val lastCorrectText: String?,
     val riskedLabel: String? = null,
+    val sessionXp: Int = 0,
 )
 
 data class PlayerProfile(
@@ -129,8 +132,14 @@ data class PlayerProfile(
     val language: AppLanguage = AppLanguage.ENGLISH,
     val onboardingComplete: Boolean = true,
     val musicEnabled: Boolean = true,
+    val timerMusicEnabled: Boolean = true,
     val sfxEnabled: Boolean = true,
-    val voiceEnabled: Boolean = false,
+    val voiceEnabled: Boolean = true,
+    val clockTicksEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
+    val reducedMotion: Boolean = false,
+    val doNotDisturb: Boolean = false,
+    val showPing: Boolean = false,
     val xp: Int = 0,
     val coins: Int = 0,
     val gems: Int = 0,
@@ -202,6 +211,18 @@ object PrizeLadder {
             index < 10 -> 45
             else -> null
         }
+    }
+
+    fun lifelineSlots(index: Int): Int = when {
+        index < 5 -> 1
+        index < 10 -> 2
+        else -> Int.MAX_VALUE
+    }
+
+    fun difficultyForIndex(index: Int): Difficulty = when {
+        index < 5 -> Difficulty.EASY
+        index < 10 -> Difficulty.MEDIUM
+        else -> Difficulty.HARD
     }
 
     fun indianGroup(amount: Long): String {

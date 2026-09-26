@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         val container = (application as MedhaApplication).container
         setContent {
             val profile by container.playerStore.profile.collectAsStateWithLifecycle(PlayerProfile())
-            MedhaTheme(reducedMotion = false) {
+            MedhaTheme(reducedMotion = profile.reducedMotion) {
                 MedhaNav(
                     container = container,
                     profile = profile,
