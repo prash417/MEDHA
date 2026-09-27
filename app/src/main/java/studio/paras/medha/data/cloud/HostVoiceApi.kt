@@ -29,37 +29,12 @@ class HostVoiceApi(
 
     suspend fun speakBoard(number: Int, prompt: String, options: List<AnswerOption>): List<String> {
         val script = HostBoard.scripts(number, prompt, options).joinToString(" ")
-        val hash = cacheKey("v10|$script")
-        cachedFile(hash)?.let { return listOf(it) }
-        downloadStored(hash)?.let { return listOf(it) }
-        val data = call(
-            hashMapOf(
-                "kind" to "board",
-                "number" to number,
-                "prompt" to prompt,
-                "options" to options.map { opt ->
-                    hashMapOf("letter" to opt.letter.name, "text" to opt.text)
-                },
-            ),
-        ) ?: return emptyList()
-        val clip = (data["clips"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return emptyList()
-        val b64 = clip["audioBase64"] as? String ?: return emptyList()
-        return listOfNotNull(saveClip(hash, b64))
+        val file = cachedFile(cacheKey("v10|$script"))
+        return if (file == null) emptyList() else listOf(file)
     }
 
     suspend fun speakLine(kind: String, detail: String = "", line: String): String? {
-        val hash = cacheKey("v10|$line")
-        cachedFile(hash)?.let { return it }
-        downloadStored(hash)?.let { return it }
-        val data = call(
-            hashMapOf(
-                "kind" to kind,
-                "detail" to detail,
-                "line" to line,
-            ),
-        ) ?: return null
-        val b64 = data["audioBase64"] as? String ?: return null
-        return saveClip(hash, b64)
+        return cachedFile(cacheKey("v10|$line"))
     }
 
     private fun saveClip(hash: String, b64: String): String? {

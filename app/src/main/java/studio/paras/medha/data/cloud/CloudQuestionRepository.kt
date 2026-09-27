@@ -30,15 +30,7 @@ class CloudQuestionRepository(
         category: String?,
     ): Result<List<QuestionRecord>> {
         val ladder = PrizeLadder.forMode(mode)
-        var poolSource = cachedPool(category)
-        if (poolSource.size < ladder.size) {
-            val remote = runCatching { fetch(category) }.getOrDefault(emptyList())
-            if (remote.isNotEmpty()) {
-                bankFile?.let { QuestionBankCache.merge(it, remote) }
-                poolSource = remote
-            }
-        }
-        if (poolSource.size < ladder.size) poolSource = localFallback()
+        val poolSource = cachedPool(category).ifEmpty { localFallback() }
         poolSource.forEach { cache[it.id] = it }
         val pool = poolSource
         if (pool.size < ladder.size) {

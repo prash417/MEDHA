@@ -18,3 +18,5 @@ app/release
 .kotlin
 functions/node_modules
 functions/package-lock.json
+app/src/main/assets/offline/
+tools/voice-files/

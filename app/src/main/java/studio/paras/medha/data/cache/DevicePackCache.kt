@@ -128,10 +128,73 @@ class DevicePackCache(context: Context) {
     private val auth = FirebaseAuth.getInstance()
 
     suspend fun sync(onProgress: (line: String, detail: String, fraction: Float) -> Unit) {
-        runCatching { if (auth.currentUser == null) auth.signInAnonymously().await() }
-        val questions = fetchQuestions(onProgress)
-        if (questions.isNotEmpty()) QuestionBankCache.write(app, questions)
-        fetchVoice(questions, onProgress)
+        copyQuestions(onProgress)
+        unpackVoice(onProgress)
+    }
+
+    private fun copyQuestions(onProgress: (String, String, Float) -> Unit) {
+        val dest = QuestionBankCache.file(app)
+        val stamp = File(app.filesDir, "question-bank.bundled")
+        if (stamp.exists() && dest.exists() && dest.length() > 1_000L) {
+            onProgress("Downloading questions", mbPair(dest.length(), dest.length()), 0.36f)
+            return
+        }
+        val total = app.assets.openFd("offline/questions.bank").use { it.length }.coerceAtLeast(1L)
+        var got = 0L
+        app.assets.open("offline/questions.bank").use { input ->
+            dest.outputStream().use { output ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                    got += read
+                    onProgress(
+                        "Downloading questions",
+                        mbPair(got, total),
+                        0.08f + 0.28f * (got.toFloat() / total),
+                    )
+                }
+            }
+        }
+        stamp.writeText("ok")
+    }
+
+    private fun unpackVoice(onProgress: (String, String, Float) -> Unit) {
+        val marker = File(voiceDir, ".unpacked")
+        if (marker.exists()) {
+            val bytes = voiceBytes()
+            onProgress("Downloading voice pack", mbPair(bytes, bytes), 0.96f)
+            return
+        }
+        val total = app.assets.openFd("offline/voice-packs.zip").use { it.length }.coerceAtLeast(1L)
+        var got = 0L
+        java.util.zip.ZipInputStream(app.assets.open("offline/voice-packs.zip")).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory) {
+                    val out = File(voiceDir, File(entry.name).name)
+                    out.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = zip.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            got += read
+                        }
+                    }
+                    onProgress(
+                        "Downloading voice pack",
+                        mbPair(got, total),
+                        0.40f + 0.56f * (got.toFloat() / total).coerceAtMost(1f),
+                    )
+                }
+                zip.closeEntry()
+            }
+        }
+        marker.writeText("ok")
+        val bytes = voiceBytes()
+        onProgress("Downloading voice pack", mbPair(bytes, bytes), 0.96f)
     }
 
     private suspend fun fetchQuestions(
