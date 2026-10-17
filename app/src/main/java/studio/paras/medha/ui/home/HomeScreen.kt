@@ -29,7 +29,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import studio.paras.medha.R
 import androidx.compose.ui.res.painterResource
-import studio.paras.medha.domain.engine.Missions
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
 
@@ -93,21 +92,10 @@ fun HomeScreen(
                             }
                         },
                     )
-                    Column(
-                        Modifier.weight(1f),
-                        horizontalAlignment = Alignment.End,
-                    ) {
-                        DailyChallengeButton(
-                            doneToday = profile.lastDailyDay == java.time.LocalDate.now().toEpochDay(),
-                            missionsReady = Missions.claimableCount(profile),
-                            onPlay = { onPlay(GameMode.DAILY, null) },
-                            onMissions = { vm.select(LobbyDest.MISSIONS) },
-                            modifier = Modifier.padding(end = 16.dp, bottom = 6.dp),
-                        )
-                        ModePlayList(
-                            onPlay = { mode -> onPlay(mode, ui.selectedCategory) },
-                        )
-                    }
+                    ModePlayList(
+                        onPlay = { mode -> onPlay(mode, ui.selectedCategory) },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
             CategoriesBar(

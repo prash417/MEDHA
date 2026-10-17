@@ -48,7 +48,7 @@ MEDHA uses an original mark, palette (ink / teal / copper), type (Cormorant + Ou
 ## October 2026 update — what changed
 
 **Game**
-- Every mode (Classic, Quick Play, Practice and the new **Daily Challenge** button on Home) now plays on the Challenge screen.
+- Every mode (Classic, Quick Play, Practice) plays on the Challenge screen.
 - The game-over card says how the run ended (won / prize secured / game over), shows the prize and coins earned, and spins a **3D trophy** (win) or **3D coin**.
 - If questions fail to load, a "Try again / Home" dialog appears instead of a stuck screen.
 - Settings in the left menu now opens the settings popup.
@@ -56,10 +56,10 @@ MEDHA uses an original mark, palette (ink / teal / copper), type (Cormorant + Ou
 **Economy**
 - Each lifeline is free once per run; after that it costs coins (prices in `domain/engine/Economy.kt` → `LifelineShop`). Hints: 3 free per run, then 50 coins.
 - Coin and diamond shops are rewarded ads only (with daily limits) plus a 5 diamonds → 1,000 coins trade.
-- Finished runs pay coins (Practice pays none); the Daily Challenge pays a 500-coin bonus once a day.
+- Finished runs pay coins (Practice pays none).
 
 **Missions, achievements, profile, leaderboard**
-- Missions are real, tiered and claimable (`Missions` in `Economy.kt`); achievements read real stats.
+- Missions (left menu) are real, tiered and claimable (`Missions` in `Economy.kt`); achievements read real stats.
 - First launch asks for the player's name; Profile lets you change name and avatar.
 - Leaderboard is online (Firestore `leaderboard` collection, top 50 by XP or best prize).
 
