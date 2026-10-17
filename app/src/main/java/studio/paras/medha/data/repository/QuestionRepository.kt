@@ -16,11 +16,23 @@ import studio.paras.medha.domain.model.QuestionRecord
 import java.time.LocalDate
 import kotlin.random.Random
 
+data class SessionDraw(
+    val questions: List<QuestionRecord>,
+    /** Ids from this category to forget because the full pool was used and a new pass started. */
+    val dropSeenIds: Set<String> = emptySet(),
+)
+
 interface QuestionRepository {
-    suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String? = null): Result<List<QuestionRecord>>
+    suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String? = null): Result<SessionDraw>
     suspend fun validate(questionId: String, selected: AnswerLetter): Result<AnswerVerdict>
     fun peek(questionId: String): QuestionRecord?
-    fun replacement(currentId: String, usedIds: Set<String>, difficulty: Difficulty): QuestionRecord?
+    fun replacement(
+        currentId: String,
+        usedIds: Set<String>,
+        difficulty: Difficulty,
+        category: String? = null,
+        seenIds: Set<String> = emptySet(),
+    ): QuestionRecord?
 }
 
 /**
@@ -31,10 +43,12 @@ class LocalQuestionRepository : QuestionRepository {
 
     private val byId = SampleQuestionBank.all.associateBy { it.id }
 
-    override suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String?): Result<List<QuestionRecord>> {
+    override suspend fun loadSession(mode: GameMode, seenIds: List<String>, category: String?): Result<SessionDraw> {
         delay(280)
         val ladder = PrizeLadder.forMode(mode)
-        val pool = SampleQuestionBank.all.filter { it.active && it.language == "en" }
+        val pool = SampleQuestionBank.all.filter {
+            it.active && it.language == "en" && (category.isNullOrBlank() || it.category == category)
+        }
         if (pool.size < ladder.size) {
             return Result.failure(IllegalStateException("Not enough questions in the chamber."))
         }
@@ -43,9 +57,7 @@ class LocalQuestionRepository : QuestionRepository {
         } else {
             Random.Default
         }
-        val unseen = pool.filter { it.id !in seenIds }.ifEmpty { pool }
-        val selected = selectByDifficulty(unseen, ladder.size, random)
-        return Result.success(selected)
+        return Result.success(drawUnseen(pool, seenIds, ladder.size, random))
     }
 
     override suspend fun validate(questionId: String, selected: AnswerLetter): Result<AnswerVerdict> {
@@ -63,32 +75,88 @@ class LocalQuestionRepository : QuestionRepository {
 
     override fun peek(questionId: String): QuestionRecord? = byId[questionId]
 
-    override fun replacement(currentId: String, usedIds: Set<String>, difficulty: Difficulty): QuestionRecord? {
-        val pool = SampleQuestionBank.all.filter { it.id != currentId && it.id !in usedIds }
-        return pool.filter { it.difficulty == difficulty }.randomOrNull()
-            ?: pool.randomOrNull()
-    }
-
-    private fun selectByDifficulty(
-        pool: List<QuestionRecord>,
-        count: Int,
-        random: Random,
-    ): List<QuestionRecord> {
-        val used = mutableSetOf<String>()
-        val out = mutableListOf<QuestionRecord>()
-        repeat(count) { index ->
-            val want = PrizeLadder.difficultyForIndex(index)
-            val pick = pool.filter { it.id !in used && it.difficulty == want }.randomOrNull(random)
-                ?: pool.filter { it.id !in used }.minByOrNull {
-                    kotlin.math.abs(it.difficulty.ordinal - want.ordinal)
-                }
-            if (pick != null) {
-                used += pick.id
-                out += pick
-            }
+    override fun replacement(
+        currentId: String,
+        usedIds: Set<String>,
+        difficulty: Difficulty,
+        category: String?,
+        seenIds: Set<String>,
+    ): QuestionRecord? {
+        val pool = SampleQuestionBank.all.filter {
+            it.active && it.language == "en" && (category.isNullOrBlank() || it.category == category)
         }
-        return out
+        return pickFresh(pool, usedIds + currentId, seenIds, difficulty)
     }
+}
+
+fun drawUnseen(
+    pool: List<QuestionRecord>,
+    seenIds: List<String>,
+    count: Int,
+    random: Random,
+): SessionDraw {
+    val seen = seenIds.toSet()
+    val unseen = pool.filter { it.id !in seen }
+    if (unseen.size >= count) {
+        return SessionDraw(pickByDifficulty(unseen, count, random))
+    }
+    val used = mutableSetOf<String>()
+    val out = mutableListOf<QuestionRecord>()
+    repeat(count) { index ->
+        val want = PrizeLadder.difficultyForIndex(index)
+        val fresh = pool.filter { it.id !in seen && it.id !in used }
+        val pick = chooseQuestion(fresh, want, random)
+            ?: chooseQuestion(pool.filter { it.id !in used }, want, random)
+        if (pick != null) {
+            used += pick.id
+            out += pick
+        }
+    }
+    return SessionDraw(out, pool.map { it.id }.toSet())
+}
+
+private fun chooseQuestion(
+    pool: List<QuestionRecord>,
+    want: Difficulty,
+    random: Random,
+): QuestionRecord? {
+    if (pool.isEmpty()) return null
+    return pool.filter { it.difficulty == want }.randomOrNull(random)
+        ?: pool.minByOrNull { kotlin.math.abs(it.difficulty.ordinal - want.ordinal) }
+}
+
+fun pickFresh(
+    pool: List<QuestionRecord>,
+    inGame: Set<String>,
+    seenIds: Set<String>,
+    difficulty: Difficulty,
+): QuestionRecord? {
+    val unseen = pool.filter { it.id !in seenIds && it.id !in inGame }
+    val notThisGame = pool.filter { it.id !in inGame }
+    val source = if (unseen.isNotEmpty()) unseen else notThisGame
+    if (source.isEmpty()) return null
+    return source.filter { it.difficulty == difficulty }.randomOrNull() ?: source.random()
+}
+
+fun pickByDifficulty(
+    pool: List<QuestionRecord>,
+    count: Int,
+    random: Random,
+): List<QuestionRecord> {
+    val used = mutableSetOf<String>()
+    val out = mutableListOf<QuestionRecord>()
+    repeat(count) { index ->
+        val want = PrizeLadder.difficultyForIndex(index)
+        val pick = pool.filter { it.id !in used && it.difficulty == want }.randomOrNull(random)
+            ?: pool.filter { it.id !in used }.minByOrNull {
+                kotlin.math.abs(it.difficulty.ordinal - want.ordinal)
+            }
+        if (pick != null) {
+            used += pick.id
+            out += pick
+        }
+    }
+    return out
 }
 
 fun QuestionRecord.toPlayable(index: Int, total: Int, prizeIndex: Int, mode: GameMode): PlayableQuestion {

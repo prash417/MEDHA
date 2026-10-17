@@ -7,6 +7,8 @@ import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import android.net.Uri
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +21,9 @@ import studio.paras.medha.data.cloud.HostBoard
 import studio.paras.medha.data.cloud.HostVoiceApi
 import studio.paras.medha.domain.model.AnswerLetter
 import studio.paras.medha.domain.model.AnswerOption
+import java.io.File
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 
@@ -48,6 +52,7 @@ class MedhaVoice(
     private var lastUtterance: String? = null
     private var pendingDone: (() -> Unit)? = null
     private val doneOnce = AtomicBoolean(true)
+    private val synthDone = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
     @Volatile private var session = 0
     private val timeout = Runnable { if (!doneOnce.get()) fireDone() }
 
@@ -80,13 +85,16 @@ class MedhaVoice(
                 main.post { onSpeaking(true) }
             }
             override fun onDone(utteranceId: String?) {
+                if (finishSynth(utteranceId, true)) return
                 if (utteranceId == lastUtterance) main.post { fireDone() }
             }
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
+                if (finishSynth(utteranceId, false)) return
                 if (utteranceId == lastUtterance) main.post { fireDone() }
             }
             override fun onError(utteranceId: String?, errorCode: Int) {
+                if (finishSynth(utteranceId, false)) return
                 if (utteranceId == lastUtterance) main.post { fireDone() }
             }
         })
@@ -155,14 +163,14 @@ class MedhaVoice(
             if (clips.isEmpty()) {
                 clips = withContext(Dispatchers.IO) {
                     runCatching { hostApi.speakBoard(number, prompt, options) }
-                        .onFailure { android.util.Log.e("MedhaVoice", "hostSpeak failed", it) }
+                        .onFailure { android.util.Log.e("MedhaVoice", "local board missing", it) }
                         .getOrDefault(emptyList())
                 }
             }
             if (session != mine || doneOnce.get() || pendingDone == null) return@launch
             val scripts = HostBoard.scripts(number, prompt, options)
             if (clips.isEmpty() || scripts.size < 2) {
-                startDeviceRead(number, prompt, options, onBeat, mine)
+                fireDone()
                 return@launch
             }
             playTimedBoard(clips.first(), scripts, onBeat, mine)
@@ -293,6 +301,8 @@ class MedhaVoice(
         lastUtterance = null
         audio.stopVoiceClip()
         tts?.stop()
+        synthDone.values.forEach { if (!it.isCompleted) it.complete(false) }
+        synthDone.clear()
         onSpeaking(false)
     }
 
@@ -311,6 +321,44 @@ class MedhaVoice(
         pendingDone = null
         lastUtterance = null
         cb?.invoke()
+    }
+
+    /** Speaks a missing line once with the phone's Indian-English host voice and keeps the file. */
+    private suspend fun ensureLocalBoard(script: String): String? {
+        hostApi.findSpoken(script)?.let { return it }
+        if (!ready.get()) {
+            suspendCancellableCoroutine { cont ->
+                val go = { if (cont.isActive) cont.resume(Unit) }
+                if (ready.get()) go() else synchronized(queued) { queued.add(go) }
+            }
+        }
+        val dest = hostApi.localWav(script)
+        if (dest.exists()) dest.delete()
+        val ok = synthesize(script, dest)
+        if (!ok || !dest.exists() || dest.length() == 0L) {
+            if (dest.exists()) dest.delete()
+            return null
+        }
+        return Uri.fromFile(dest).toString()
+    }
+
+    private suspend fun synthesize(script: String, dest: File): Boolean {
+        val engine = tts ?: return false
+        val id = "synth-${System.nanoTime()}"
+        val gate = CompletableDeferred<Boolean>()
+        synthDone[id] = gate
+        val result = engine.synthesizeToFile(script, Bundle(), dest, id)
+        if (result == TextToSpeech.ERROR) {
+            synthDone.remove(id)
+            return false
+        }
+        return gate.await()
+    }
+
+    private fun finishSynth(utteranceId: String?, ok: Boolean): Boolean {
+        val gate = utteranceId?.let { synthDone.remove(it) } ?: return false
+        if (!gate.isCompleted) gate.complete(ok)
+        return true
     }
 
     private fun say(text: String, flush: Boolean, doneId: String?) {

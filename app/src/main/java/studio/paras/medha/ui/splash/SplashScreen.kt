@@ -17,6 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import android.os.SystemClock
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -46,6 +51,8 @@ fun SplashScreen(
     val view = LocalView.current
     val ui by vm.state.collectAsStateWithLifecycle()
     val time = rememberWallSeconds()
+    val started = remember { SystemClock.uptimeMillis() }
+    var leaveFrom by remember { mutableFloatStateOf(-1f) }
 
     DisposableEffect(view) {
         view.keepScreenOn = true
@@ -61,13 +68,20 @@ fun SplashScreen(
         }
     }
 
-    LaunchedEffect(ui.finished) {
-        if (ui.finished) onFinished()
+    val creditGone = appear(time, 2.20f, 0.95f)
+    val loadingIn = appear(time, 3.15f, 0.7f)
+    LaunchedEffect(ui.ready) {
+        if (!ui.ready || leaveFrom >= 0f) return@LaunchedEffect
+        val elapsed = SystemClock.uptimeMillis() - started
+        delay((4_600L - elapsed).coerceAtLeast(400L))
+        leaveFrom = (SystemClock.uptimeMillis() - started) / 1000f
+    }
+    val loadingGone = if (leaveFrom < 0f) 0f else appear(time, leaveFrom, 0.7f)
+    LaunchedEffect(loadingGone, leaveFrom) {
+        if (leaveFrom >= 0f && loadingGone >= 1f) onFinished()
     }
 
-    val artIn = appear(time, 2.05f, 1.25f)
-    val studio = 1f - appear(time, 2.20f, 0.95f)
-    val hud = appear(time, 3.15f, 0.85f)
+    val loadingAlpha = loadingIn * (1f - loadingGone)
 
     Box(
         Modifier
@@ -78,12 +92,7 @@ fun SplashScreen(
             time = time,
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    alpha = artIn
-                    val z = lerp(1.045f, 1f, artIn)
-                    scaleX = z
-                    scaleY = z
-                },
+                .graphicsLayer { alpha = loadingAlpha },
         )
         LoadingProgress(
             state = ui,
@@ -92,11 +101,11 @@ fun SplashScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .graphicsLayer { alpha = hud },
+                .graphicsLayer { alpha = loadingAlpha },
         )
         StudioCard(
             time = time,
-            alpha = studio,
+            alpha = 1f - creditGone,
             modifier = Modifier.align(Alignment.Center),
         )
     }

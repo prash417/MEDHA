@@ -15,7 +15,7 @@ data class SplashUiState(
     val percent: Int = 0,
     val line: String = " ",
     val detail: String = " ",
-    val finished: Boolean = false,
+    val ready: Boolean = false,
 )
 
 class SplashViewModel(app: Application) : AndroidViewModel(app) {
@@ -29,17 +29,23 @@ class SplashViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun runBoot() {
-        delay(3_050L)
-        emit(0.04f, "Connecting to the arena...", " ")
-        delay(400L)
+        val cached = packs.alreadyOnDevice()
         runCatching {
             packs.sync { line, detail, fraction ->
                 emit(fraction, line, detail)
             }
         }
-        emit(1f, "Ready", " ")
-        delay(HOLD_MS)
-        _state.value = _state.value.copy(finished = true)
+        if (cached) playWarmup()
+        _state.value = _state.value.copy(progress = 1f, percent = 100, ready = true)
+    }
+
+    /** Packs are already saved, so the bar fills while short game lines play. */
+    private suspend fun playWarmup() {
+        delay(3_000)
+        WarmupLines.forEachIndexed { index, beat ->
+            emit((index + 1) / WarmupLines.size.toFloat(), beat.first, beat.second)
+            delay(900)
+        }
     }
 
     private fun emit(progress: Float, line: String, detail: String) {
@@ -53,6 +59,13 @@ class SplashViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        const val HOLD_MS = 700L
+        private val WarmupLines = listOf(
+            "Please wait while the hall gets ready." to "Questions and the host voice are already on this phone.",
+            "Read the whole question before you lock." to "Once you lock, that answer is final.",
+            "A clean correct answer scores 100 XP." to "Use a lifeline and a correct answer scores 50 XP.",
+            "A wrong answer or a timeout scores nothing." to "The clock keeps running while you think.",
+            "Hint, Switch, and Dare sit on the left." to "Classic is fifteen questions. Quick Play is five.",
+            "Practice plays the same board, with no XP." to "The host reads the question and every option.",
+        )
     }
 }

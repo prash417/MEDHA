@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import studio.paras.medha.R
-import androidx.compose.ui.res.painterResource
+import studio.paras.medha.core.ui.rememberAssetImage
 
 @Composable
 fun SplashBackground(
@@ -21,7 +20,7 @@ fun SplashBackground(
             .background(SplashPalette.Ink),
     ) {
         Image(
-            painter = painterResource(R.drawable.splash_bg),
+            bitmap = rememberAssetImage("Splash bg.png"),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
             modifier = Modifier.fillMaxSize(),

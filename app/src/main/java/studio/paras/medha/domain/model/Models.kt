@@ -149,6 +149,11 @@ data class PlayerProfile(
     val correctAnswers: Int = 0,
     val wrongAnswers: Int = 0,
     val dailyStreak: Int = 0,
+    val streakAnchorDay: Long = 0,
+    val streakJoinIndex: Int = -1,
+    val streakMask: Int = 0,
+    val streakBroken: Boolean = false,
+    val streakLastClaimAtMillis: Long = 0,
     val lastPlayEpochDay: Long = 0,
     val seenQuestionIds: List<String> = emptyList(),
 ) {

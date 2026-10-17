@@ -44,6 +44,8 @@ fun HomeScreen(
     onMessages: () -> Unit,
     onSettings: () -> Unit,
     onLeaderboard: () -> Unit,
+    onStreak: () -> Unit = {},
+    streakMask: Int = 0,
     vm: HomeViewModel = viewModel(),
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
@@ -115,6 +117,8 @@ fun HomeScreen(
             onAddGems = onAddGems,
             onMessages = onMessages,
             onSettings = onSettings,
+            onStreak = onStreak,
+            streakMask = streakMask,
             pingMs = pingMs,
             modifier = Modifier
                 .align(Alignment.TopEnd)

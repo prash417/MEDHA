@@ -2,24 +2,14 @@ package studio.paras.medha.data.cloud
 
 import android.content.Context
 import android.net.Uri
-import android.util.Base64
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.functions.FirebaseFunctions
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.tasks.await
 import studio.paras.medha.domain.model.AnswerOption
 import java.io.File
 import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
 
 class HostVoiceApi(
     context: Context,
-    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("asia-south1"),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) {
     private val cacheDir = File(context.filesDir, "host-voice").also { it.mkdirs() }
-    private val lock = Any()
-    private val inflight = mutableMapOf<String, CompletableDeferred<List<String>>>()
 
     fun peekBoard(number: Int, prompt: String, options: List<AnswerOption>): List<String> {
         val script = HostBoard.scripts(number, prompt, options).joinToString(" ")
@@ -37,90 +27,16 @@ class HostVoiceApi(
         return cachedFile(cacheKey("v10|$line"))
     }
 
-    private fun saveClip(hash: String, b64: String): String? {
-        val bytes = Base64.decode(b64, Base64.DEFAULT)
-        if (bytes.isEmpty()) return null
-        val file = File(cacheDir, "$hash.mp3")
-        file.writeBytes(bytes)
-        return Uri.fromFile(file).toString()
-    }
+    fun findSpoken(script: String): String? = cachedFile(cacheKey("v10|$script"))
 
-    private suspend fun fetchBoard(
-        boardKey: String,
-        number: Int,
-        prompt: String,
-        options: List<AnswerOption>,
-    ): List<String> {
-        cachedBoard(boardKey)?.let { return it }
-        val script = HostBoard.scripts(number, prompt, options).joinToString(" ")
-        val stored = downloadStored(cacheKey("v10|$script"))
-        if (stored != null) return listOf(stored)
-        val payload = hashMapOf<String, Any>(
-            "kind" to "board",
-            "number" to number,
-            "prompt" to prompt,
-            "options" to options.map { opt ->
-                hashMapOf("letter" to opt.letter.name, "text" to opt.text)
-            },
-        )
-        val data = call(payload) ?: return emptyList()
-        val clips = data["clips"] as? List<*> ?: return emptyList()
-        val dir = File(cacheDir, boardKey).also { it.mkdirs() }
-        return clips.mapIndexedNotNull { index, raw ->
-            val map = raw as? Map<*, *> ?: return@mapIndexedNotNull null
-            val b64 = map["audioBase64"] as? String ?: return@mapIndexedNotNull null
-            val bytes = Base64.decode(b64, Base64.DEFAULT)
-            if (bytes.isEmpty()) return@mapIndexedNotNull null
-            val file = File(dir, "$index.mp3")
-            file.writeBytes(bytes)
-            Uri.fromFile(file).toString()
-        }
-    }
-
-    private suspend fun downloadStored(hash: String): String? {
-        if (hash.isBlank()) return null
-        cachedFile(hash)?.let { return it }
-        runCatching {
-            if (auth.currentUser == null) auth.signInAnonymously().await()
-        }
-        val file = File(cacheDir, "$hash.mp3")
-        return try {
-            val ref = com.google.firebase.storage.FirebaseStorage.getInstance()
-                .reference
-                .child("voice/$hash.mp3")
-            ref.getFile(file).await()
-            if (file.length() > 0L) Uri.fromFile(file).toString() else null
-        } catch (_: Exception) {
-            if (file.exists() && file.length() <= 0L) file.delete()
-            null
-        }
-    }
-
-    private suspend fun call(payload: Map<String, Any>): Map<*, *>? {
-        runCatching {
-            if (auth.currentUser == null) auth.signInAnonymously().await()
-        }
-        val callable = functions.getHttpsCallable("hostSpeak")
-        callable.setTimeout(45, TimeUnit.SECONDS)
-        val snap = callable.call(payload).await()
-        return snap.data as? Map<*, *>
-    }
-
-    private fun cachedBoard(key: String): List<String>? {
-        val dir = File(cacheDir, key)
-        if (!dir.isDirectory) return null
-        val files = dir.listFiles()?.filter { it.name.endsWith(".mp3") }?.sortedBy {
-            it.name.removeSuffix(".mp3").toIntOrNull() ?: 0
-        } ?: return null
-        if (files.isEmpty()) return null
-        if (files.any { it.length() <= 0L }) return null
-        return files.map { Uri.fromFile(it).toString() }
-    }
+    fun localWav(script: String): File = File(cacheDir, cacheKey("v10|$script") + ".wav")
 
     private fun cachedFile(hash: String): String? {
         if (hash.isBlank()) return null
-        val file = File(cacheDir, "$hash.mp3")
-        return if (file.exists() && file.length() > 0L) Uri.fromFile(file).toString() else null
+        val mp3 = File(cacheDir, "$hash.mp3")
+        if (mp3.exists() && mp3.length() > 0L) return Uri.fromFile(mp3).toString()
+        val wav = File(cacheDir, "$hash.wav")
+        return if (wav.exists() && wav.length() > 0L) Uri.fromFile(wav).toString() else null
     }
 
     private fun cacheKey(raw: String): String {

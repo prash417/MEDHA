@@ -123,6 +123,8 @@ fun TopGameHud(
     onAddGems: () -> Unit,
     onMessages: () -> Unit,
     onSettings: () -> Unit,
+    onStreak: () -> Unit = {},
+    streakMask: Int = 0,
     pingMs: Int? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -220,7 +222,8 @@ fun TopGameHud(
             Modifier
                 .padding(top = StreakPadTop)
                 .width(rankWidth)
-                .height(StreakHeight),
+                .height(StreakHeight)
+                .medhaClickable(onClick = onStreak),
         ) {
             Image(
                 painter = painterResource(R.drawable.seven_day_streak),
@@ -243,7 +246,7 @@ fun TopGameHud(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(7) { day ->
-                    val checked = day < 4
+                    val checked = streakMask and (1 shl day) != 0
                     Box(
                         Modifier.size(lockSize),
                         contentAlignment = Alignment.Center,

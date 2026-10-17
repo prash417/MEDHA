@@ -45,6 +45,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
@@ -100,6 +102,7 @@ private data class ChallengeOpSpec(
     val used: Boolean,
     val available: Boolean,
     val onClick: () -> Unit,
+    val repeatable: Boolean = false,
 )
 
 private fun categoryBannerFile(id: String?): String = when (id) {
@@ -197,6 +200,7 @@ fun ChallengeScreen(
     onDismissHint: () -> Unit = {},
     onHome: () -> Unit = {},
     onReplay: () -> Unit = {},
+    onQuit: () -> Unit = {},
     clearedRungs: Int = 0,
     trackXp: Boolean = true,
     earnedXp: Int = 0,
@@ -253,25 +257,42 @@ fun ChallengeScreen(
             val loaded = presented && (timerTotal == null || secondsLeft != null)
             val thinking = loaded && (phase == GamePhase.QUESTION_DISPLAY || phase == GamePhase.CONFIRMING)
             val ops = listOf(
-                ChallengeOpSpec("Hint op1.png", "Hint", hintUsed, loaded && phase == GamePhase.QUESTION_DISPLAY, onHint),
+                ChallengeOpSpec(
+                    "Hint op1.png",
+                    "Hint",
+                    used = false,
+                    available = loaded && phase == GamePhase.QUESTION_DISPLAY,
+                    onClick = onHint,
+                    repeatable = true,
+                ),
                 ChallengeOpSpec("Dare op2.png", "Dare", dareUsed, thinking, onDare),
                 ChallengeOpSpec("remove two op3.png", "Remove two", fiftyUsed, thinking, onFiftyFifty),
                 ChallengeOpSpec("Switch op4.png", "Switch", switchUsed, thinking, onSwitch),
                 ChallengeOpSpec("Extra Time op5.png", "Extra time", extraTimeUsed, thinking && timerTotal != null, onExtraTime),
                 ChallengeOpSpec("Protect op6.png", "Protect", protectUsed, thinking, onProtect),
             )
+            val spent = remember {
+                ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+            }
             ops.forEachIndexed { i, op ->
-                val enabled = !op.used && op.available && canSpendLifeline
+                val spentLook = op.used && !op.repeatable
+                val clickable = if (op.repeatable) {
+                    op.available
+                } else {
+                    !op.used && op.available && canSpendLifeline
+                }
                 Image(
                     bitmap = rememberAssetImage(op.file, trim = true),
                     contentDescription = op.label,
                     contentScale = ContentScale.Fit,
+                    colorFilter = if (spentLook) spent else null,
+                    alpha = if (spentLook) 0.38f else 1f,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .challengeArrive(entered, delayMs = 70 + i * 45, dx = -slide)
                         .medhaClickable(
-                            enabled = enabled,
+                            enabled = clickable,
                             role = Role.Button,
                             onClick = op.onClick,
                         ),
@@ -346,6 +367,40 @@ fun ChallengeScreen(
                 .width(QuestionBarHeight * CategoryBarAspect)
                 .challengeArrive(entered, delayMs = 190, dy = slide),
         )
+        if (phase != GamePhase.GAME_COMPLETE) {
+            val quitArt = rememberAssetImage("Quit.png", trim = true)
+            val replayArt = rememberAssetImage("Replay.png", trim = true)
+            val quitAspect = quitArt.width.toFloat() / quitArt.height.toFloat().coerceAtLeast(1f)
+            val replayAspect = replayArt.width.toFloat() / replayArt.height.toFloat().coerceAtLeast(1f)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 2.dp)
+                    .zIndex(3f)
+                    .challengeArrive(entered, delayMs = 200, dy = slide),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    bitmap = quitArt,
+                    contentDescription = "Quit",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .height(58.dp)
+                        .aspectRatio(quitAspect)
+                        .medhaClickable(role = Role.Button, onClick = onQuit),
+                )
+                Image(
+                    bitmap = replayArt,
+                    contentDescription = "Replay",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .height(58.dp)
+                        .aspectRatio(replayAspect)
+                        .medhaClickable(role = Role.Button, onClick = onReplay),
+                )
+            }
+        }
         if (!hintText.isNullOrBlank()) {
             HintPopup(text = hintText, onDismiss = onDismissHint)
         }

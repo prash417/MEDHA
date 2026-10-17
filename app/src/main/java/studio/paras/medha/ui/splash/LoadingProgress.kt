@@ -63,23 +63,23 @@ fun LoadingProgress(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
-            Modifier.fillMaxWidth(0.42f),
+            Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             FloorText(
                 text = state.line,
                 color = Color.White,
                 style = LineStyle,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(18.dp),
+                    .fillMaxWidth(0.78f)
+                    .height(20.dp),
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxWidth(0.42f)
                     .padding(top = 6.dp),
             ) {
                 Canvas(Modifier.weight(1f).height(20.dp)) {
@@ -137,13 +137,13 @@ fun LoadingProgress(
                 color = Color.White,
                 style = LineStyle,
                 fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 textAlign = TextAlign.Center,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxWidth(0.78f)
                     .padding(top = 4.dp)
-                    .height(16.dp),
+                    .height(18.dp),
             )
         }
 

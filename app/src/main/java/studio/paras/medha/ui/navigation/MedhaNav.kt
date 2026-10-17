@@ -1,6 +1,8 @@
 package studio.paras.medha.ui.navigation
 
 import android.os.SystemClock
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -31,6 +33,7 @@ import studio.paras.medha.core.audio.Sfx
 import studio.paras.medha.di.AppContainer
 import studio.paras.medha.core.ui.LocalTapSound
 import studio.paras.medha.core.ui.ProvideHudControls
+import studio.paras.medha.domain.engine.LoginStreak
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.GameOutcome
 import studio.paras.medha.domain.model.GamePhase
@@ -45,6 +48,12 @@ import studio.paras.medha.ui.leaderboard.LeaderboardScreen
 import studio.paras.medha.ui.profile.ProfileScreen
 import studio.paras.medha.ui.result.ResultScreen
 import studio.paras.medha.ui.home.ArtFramePopup
+import studio.paras.medha.ui.home.CurrencyShopPopup
+import studio.paras.medha.ui.home.ShopPack
+import studio.paras.medha.ui.home.StreakPopup
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import studio.paras.medha.ui.home.GameSettingsPopup
 import studio.paras.medha.ui.settings.SettingsScreen
 import studio.paras.medha.ui.splash.SplashScreen
@@ -56,7 +65,8 @@ object Routes {
     const val SETTINGS = "settings"
     const val PROFILE = "profile"
     const val LEADERBOARD = "leaderboard"
-    const val CHALLENGE = "challenge"
+    const val CHALLENGE = "challenge/{category}"
+    fun challenge(category: String) = "challenge/$category"
     fun game(mode: GameMode) = "game/${mode.id}"
 }
 
@@ -83,11 +93,20 @@ fun MedhaNav(
         }
         container.audio.setMusic(MusicTrack.LOBBY)
     }
+    fun openChallenge(category: String, mode: GameMode, awardXp: Boolean) {
+        container.playMode = mode
+        container.playCategory = category
+        container.awardXp = awardXp
+        nav.navigate(Routes.challenge(category)) {
+            popUpTo(Routes.HOME)
+        }
+    }
     LaunchedEffect(onHome, route) {
         swipeBack.route = route
         swipeBack.callback.isEnabled = onHome
     }
     var settingsOpen by remember { mutableStateOf(false) }
+    var streakOpen by remember { mutableStateOf(false) }
     var frameFile by remember { mutableStateOf<String?>(null) }
     val openSettings = { settingsOpen = true }
     val openCoins = { frameFile = "coins.png" }
@@ -194,27 +213,31 @@ fun MedhaNav(
             NavHost(
                 navController = nav,
                 startDestination = startDest,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
             ) {
                 composable(Routes.HOME) {
-                    LaunchedEffect(Unit) { container.audio.setMusic(MusicTrack.LOBBY) }
+                    LaunchedEffect(Unit) {
+                        container.audio.setMusic(MusicTrack.LOBBY)
+                        val today = LocalDate.now().toEpochDay()
+                        container.playerStore.update { LoginStreak.ensure(it, today) }
+                    }
                     HomeScreen(
                         profile = profile,
                         pingMs = pingMs,
-                        onPlay = { mode, category ->
+                        onPlay = { mode, _ ->
                             container.playMode = mode
                             container.awardXp = mode != GameMode.PRACTICE
                             if (mode == GameMode.CLASSIC || mode == GameMode.QUICK || mode == GameMode.PRACTICE) {
-                                container.playCategory = mode.id
-                                nav.navigate(Routes.CHALLENGE)
+                                openChallenge(mode.id, mode, awardXp = mode != GameMode.PRACTICE)
                             } else {
                                 nav.navigate(Routes.game(mode))
                             }
                         },
                         onChallenge = { category ->
-                            container.playMode = GameMode.CLASSIC
-                            container.playCategory = category
-                            container.awardXp = true
-                            nav.navigate(Routes.CHALLENGE)
+                            openChallenge(category, GameMode.CLASSIC, awardXp = true)
                         },
                         onProfile = { nav.navigate(Routes.PROFILE) },
                         onAddCoins = openCoins,
@@ -222,6 +245,14 @@ fun MedhaNav(
                         onMessages = openMail,
                         onSettings = openSettings,
                         onLeaderboard = { nav.navigate(Routes.LEADERBOARD) },
+                        onStreak = {
+                            scope.launch {
+                                val today = LocalDate.now().toEpochDay()
+                                container.playerStore.update { LoginStreak.ensure(it, today) }
+                                streakOpen = true
+                            }
+                        },
+                        streakMask = LoginStreak.week(profile, LocalDate.now().toEpochDay()).mask,
                     )
                 }
                 composable(
@@ -270,12 +301,22 @@ fun MedhaNav(
                 composable(Routes.LEADERBOARD) {
                     LeaderboardScreen(profile = profile, onBack = { nav.popBackStack() })
                 }
-                composable(Routes.CHALLENGE) {
+                composable(
+                    Routes.CHALLENGE,
+                    arguments = listOf(navArgument("category") { type = NavType.StringType }),
+                ) { entry ->
+                    val category = entry.arguments?.getString("category").orEmpty()
                     val playMode = container.playMode
                     val vm: GameViewModel = viewModel(
-                        key = "medha-challenge-${playMode.id}-${container.playCategory}",
-                        factory = remember(playMode, container.playCategory) {
-                            GameViewModel.Factory(playMode, container, stepBackOnTimeout = true)
+                        viewModelStoreOwner = entry,
+                        key = "medha-challenge-${playMode.id}-$category",
+                        factory = remember(playMode, category) {
+                            GameViewModel.Factory(
+                                playMode,
+                                container,
+                                stepBackOnTimeout = true,
+                                category = category,
+                            )
                         },
                     )
                     val play by vm.state.collectAsStateWithLifecycle()
@@ -295,7 +336,7 @@ fun MedhaNav(
                         onAddCoins = openCoins,
                         onAddGems = openGems,
                         onSettings = openSettings,
-                        categoryId = container.playCategory,
+                        categoryId = category,
                         questionNumber = (play.index + 1).coerceAtLeast(1),
                         totalQuestions = play.total.coerceAtLeast(1),
                         prompt = play.promptShown,
@@ -337,12 +378,11 @@ fun MedhaNav(
                         dareArmed = play.dareArmed,
                         canSpendLifeline = play.canSpendLifeline,
                         onDismissHint = vm::dismissHint,
+                        onQuit = vm::quitKeepingReward,
                         onHome = { leavePlay(vm) },
                         onReplay = {
                             vm.leaveSession()
-                            nav.navigate(Routes.CHALLENGE) {
-                                popUpTo(Routes.CHALLENGE) { inclusive = true }
-                            }
+                            openChallenge(category, playMode, awardXp = container.awardXp)
                         },
                         clearedRungs = play.correctCount,
                         trackXp = playMode != GameMode.PRACTICE,
@@ -395,8 +435,77 @@ fun MedhaNav(
                 onDismiss = { settingsOpen = false },
             )
         }
+        if (streakOpen) {
+            StreakPopup(
+                profile = profile,
+                onDayChanged = { day ->
+                    scope.launch {
+                        container.playerStore.update { LoginStreak.ensure(it, day) }
+                    }
+                },
+                onClaim = {
+                    scope.launch {
+                        container.playerStore.update { current ->
+                            val now = System.currentTimeMillis()
+                            val claimDay = Instant.ofEpochMilli(now)
+                                .atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
+                            LoginStreak.claim(current, claimDay, now) ?: current
+                        }
+                    }
+                },
+                onDismiss = { streakOpen = false },
+            )
+        }
         frameFile?.let { file ->
-            ArtFramePopup(fileName = file, onDismiss = { frameFile = null })
+            when (file) {
+                "coins.png" -> CurrencyShopPopup(
+                    fileName = file,
+                    watchTitle = "Watch ad",
+                    watchDetail = "10 coins",
+                    onWatch = {
+                        container.ads.showRewarded {
+                            scope.launch {
+                                container.playerStore.update { it.copy(coins = it.coins + 10) }
+                            }
+                        }
+                    },
+                    packs = listOf(
+                        ShopPack("2,500", "Coins", 2_500),
+                        ShopPack("12,000", "Coins", 12_000),
+                        ShopPack("60,000", "Coins", 60_000),
+                    ),
+                    onBuy = { amount ->
+                        scope.launch {
+                            container.playerStore.update { it.copy(coins = it.coins + amount) }
+                        }
+                    },
+                    onDismiss = { frameFile = null },
+                )
+                "Dimonds.png" -> CurrencyShopPopup(
+                    fileName = file,
+                    watchTitle = "Watch ad",
+                    watchDetail = "1 diamond",
+                    onWatch = {
+                        container.ads.showRewarded {
+                            scope.launch {
+                                container.playerStore.update { it.copy(gems = it.gems + 1) }
+                            }
+                        }
+                    },
+                    packs = listOf(
+                        ShopPack("80", "Diamonds", 80),
+                        ShopPack("450", "Diamonds", 450),
+                        ShopPack("2,000", "Diamonds", 2_000),
+                    ),
+                    onBuy = { amount ->
+                        scope.launch {
+                            container.playerStore.update { it.copy(gems = it.gems + amount) }
+                        }
+                    },
+                    onDismiss = { frameFile = null },
+                )
+                else -> ArtFramePopup(fileName = file, onDismiss = { frameFile = null })
+            }
         }
     }
     }

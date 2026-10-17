@@ -44,6 +44,11 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         val correct = intPreferencesKey("correct")
         val wrong = intPreferencesKey("wrong")
         val streak = intPreferencesKey("streak")
+        val streakAnchor = longPreferencesKey("streak_anchor")
+        val streakJoin = intPreferencesKey("streak_join")
+        val streakMask = intPreferencesKey("streak_mask")
+        val streakBroken = booleanPreferencesKey("streak_broken")
+        val streakLastClaimAt = longPreferencesKey("streak_last_claim_at")
         val lastDay = longPreferencesKey("last_day")
         val seen = stringPreferencesKey("seen")
     }
@@ -60,10 +65,7 @@ class PlayerStore(private val context: Context) : PlayerRepository {
     }
 
     override suspend fun applyGameResult(result: GameResult) {
-        update { it.withResult(result).let { profile ->
-            val seen = (profile.seenQuestionIds).distinct().takeLast(180)
-            profile.copy(seenQuestionIds = seen)
-        } }
+        update { it.withResult(result) }
     }
 
     fun rememberQuestions(ids: List<String>) {
@@ -96,6 +98,11 @@ class PlayerStore(private val context: Context) : PlayerRepository {
             correctAnswers = this[Keys.correct] ?: 0,
             wrongAnswers = this[Keys.wrong] ?: 0,
             dailyStreak = this[Keys.streak] ?: 0,
+            streakAnchorDay = this[Keys.streakAnchor] ?: 0L,
+            streakJoinIndex = this[Keys.streakJoin] ?: -1,
+            streakMask = this[Keys.streakMask] ?: 0,
+            streakBroken = this[Keys.streakBroken] ?: false,
+            streakLastClaimAtMillis = this[Keys.streakLastClaimAt] ?: 0L,
             lastPlayEpochDay = this[Keys.lastDay] ?: 0L,
             seenQuestionIds = seen,
         )
@@ -124,6 +131,11 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         this[Keys.correct] = p.correctAnswers
         this[Keys.wrong] = p.wrongAnswers
         this[Keys.streak] = p.dailyStreak
+        this[Keys.streakAnchor] = p.streakAnchorDay
+        this[Keys.streakJoin] = p.streakJoinIndex
+        this[Keys.streakMask] = p.streakMask
+        this[Keys.streakBroken] = p.streakBroken
+        this[Keys.streakLastClaimAt] = p.streakLastClaimAtMillis
         this[Keys.lastDay] = p.lastPlayEpochDay
         this[Keys.seen] = p.seenQuestionIds.joinToString(",")
     }

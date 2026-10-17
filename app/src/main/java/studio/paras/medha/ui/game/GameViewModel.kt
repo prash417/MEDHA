@@ -92,6 +92,7 @@ class GameViewModel(
     private val mode: GameMode,
     private val container: AppContainer,
     private val stepBackOnTimeout: Boolean = false,
+    private val category: String? = null,
 ) : ViewModel() {
 
     companion object {
@@ -105,6 +106,9 @@ class GameViewModel(
 
     private var records: List<QuestionRecord> = emptyList()
     private var usedIds = mutableSetOf<String>()
+    private var seenIds = mutableSetOf<String>()
+    private var shownIds = mutableSetOf<String>()
+    private val hintsShown = mutableSetOf<String>()
     private var startedAt = System.currentTimeMillis()
     private var sequence: Job? = null
     private var heartbeat: Job? = null
@@ -141,22 +145,31 @@ class GameViewModel(
                 if (mode == GameMode.DAILY) AnalyticsEvents.DAILY_STARTED else AnalyticsEvents.GAME_STARTED,
                 mapOf("mode" to mode.id),
             )
-            val result = container.questions.loadSession(mode, profile.seenQuestionIds, container.playCategory)
+            val pool = category ?: container.playCategory
+            seenIds = profile.seenQuestionIds.toMutableSet()
+            shownIds.clear()
+            val result = container.questions.loadSession(mode, profile.seenQuestionIds, pool)
             result.fold(
-                onSuccess = { list ->
+                onSuccess = { draw ->
                     if (run != runId) return@fold
-                    if (list.isEmpty()) {
+                    if (draw.questions.isEmpty()) {
                         _state.update { it.copy(phase = GamePhase.IDLE, error = "No questions are ready. Try again shortly.") }
                     } else {
-                        records = list
-                        usedIds = list.map { q -> q.id }.toMutableSet()
+                        if (draw.dropSeenIds.isNotEmpty()) {
+                            seenIds.removeAll(draw.dropSeenIds)
+                            container.playerStore.update { player ->
+                                player.copy(seenQuestionIds = player.seenQuestionIds.filter { it !in draw.dropSeenIds })
+                            }
+                        }
+                        records = draw.questions
+                        usedIds = draw.questions.map { q -> q.id }.toMutableSet()
                         prefetchVoice(0)
                         prefetchVoice(1)
                         _state.value = GameUiState(
                             mode = mode,
                             phase = GamePhase.SEAT_INTRO,
                             playerName = profile.displayName.ifBlank { "Guest" },
-                            total = list.size,
+                            total = draw.questions.size,
                             reducedMotion = profile.reducedMotion,
                             startXp = profile.xp,
                         )
@@ -187,6 +200,33 @@ class GameViewModel(
         start()
     }
 
+    /** A slot that was already asked gets a different question from the ones still unused. */
+    private fun questionFor(index: Int): QuestionRecord? {
+        val current = records.getOrNull(index) ?: return null
+        if (current.id !in shownIds) return current
+        val next = container.questions.replacement(
+            current.id,
+            usedIds,
+            PrizeLadder.difficultyForIndex(index),
+            category,
+            seenIds,
+        ) ?: return current
+        if (next.id == current.id) return current
+        usedIds += next.id
+        records = records.toMutableList().also { it[index] = next }
+        return next
+    }
+
+    private fun noteSeen(id: String) {
+        if (!seenIds.add(id)) return
+        viewModelScope.launch {
+            container.playerStore.update { player ->
+                if (id in player.seenQuestionIds) player
+                else player.copy(seenQuestionIds = player.seenQuestionIds + id)
+            }
+        }
+    }
+
     fun takeTheSeat() {
         if (left || _state.value.phase != GamePhase.SEAT_INTRO) return
         container.audio.setMusic(MusicTrack.TICKING_MYSTERY)
@@ -199,7 +239,9 @@ class GameViewModel(
         heartbeat?.cancel()
         sequence?.cancel()
         container.voice.stop()
-        val record = records.getOrNull(index) ?: return finish(GameOutcome.WON)
+        val record = questionFor(index) ?: return finish(GameOutcome.WON)
+        if (shownIds.add(record.id)) noteSeen(record.id)
+        hintsShown.clear()
         val playable = record.toPlayable(index, records.size, index, mode)
         val seconds = PrizeLadder.timerSeconds(index, mode)
         _state.update {
@@ -406,27 +448,36 @@ class GameViewModel(
         }
         if (_state.value.dareArmed) {
             applyDareFail()
-        } else if (stepBackOnTimeout && _state.value.index > 0) {
-            stepBackQuestion()
         } else {
-            finish(GameOutcome.DROPPED)
+            retreatOrDrop()
         }
+    }
+
+    /** Wrong or time-up after question 1 steps back to the question before the last correct one. */
+    private fun retreatOrDrop() {
+        if (!stepBackOnTimeout || _state.value.index <= 0) {
+            finish(GameOutcome.DROPPED)
+            return
+        }
+        stepBackQuestion()
     }
 
     private fun stepBackQuestion() {
         val s = _state.value
-        val back = (s.index - 1).coerceAtLeast(0)
-        val last = s.xpAwards.lastOrNull()
-        val drop = if (last != null && last.question == s.index) last.amount else 0
+        val land = (s.index - 2).coerceAtLeast(0)
+        val kept = s.xpAwards.filter { it.question <= land }
+        val drop = (s.earnedXp - kept.sumOf { it.amount }).coerceAtLeast(0)
         _state.update {
             it.copy(
-                correctCount = back,
+                correctCount = land,
                 earnedXp = (it.earnedXp - drop).coerceAtLeast(0),
-                xpAwards = if (drop > 0) it.xpAwards.dropLast(1) else it.xpAwards,
+                xpAwards = kept,
                 dareArmed = false,
+                hintUsed = false,
+                hintText = null,
             )
         }
-        stingThenShow(back)
+        stingThenShow(land)
     }
 
     private suspend fun reveal() {
@@ -486,7 +537,7 @@ class GameViewModel(
             if (s.dareArmed) {
                 applyDareFail()
             } else {
-                finish(GameOutcome.DROPPED)
+                retreatOrDrop()
             }
         }
     }
@@ -541,7 +592,7 @@ class GameViewModel(
 
     fun useHint() {
         val s = _state.value
-        if (!s.answersOpen || !s.canLifeline || s.hintUsed || !s.canSpendLifeline) return
+        if (!s.answersOpen || s.phase != GamePhase.QUESTION_DISPLAY) return
         val record = records.getOrNull(s.index) ?: return
         val answer = when (record.correct) {
             AnswerLetter.A -> record.optionA
@@ -555,10 +606,21 @@ class GameViewModel(
             .ifEmpty {
                 listOf("Read the question again and drop the option that belongs to a different fact.")
             }
-        val one = pool.random()
+        val fresh = pool.filter { it !in hintsShown }
+        val source = fresh.ifEmpty {
+            hintsShown.clear()
+            pool
+        }
+        val one = source.random()
+        hintsShown += one
         container.audio.play(Sfx.LIFELINE)
         container.analytics.track(AnalyticsEvents.LIFELINE_USED, mapOf("kind" to "HINT"))
-        _state.update { it.copy(hintUsed = true, hintText = one, lifelinesOnQuestion = it.lifelinesOnQuestion + 1) }
+        _state.update {
+            it.copy(
+                hintText = one,
+                lifelinesOnQuestion = if (it.lifelinesOnQuestion == 0) 1 else it.lifelinesOnQuestion,
+            )
+        }
     }
 
     fun dismissHint() {
@@ -606,7 +668,13 @@ class GameViewModel(
                 _state.update { it.copy(expert = advice, usedLifelines = it.usedLifelines + kind) }
             }
             LifelineKind.SWITCH -> {
-                val replacement = container.questions.replacement(record.id, usedIds, record.difficulty)
+                val replacement = container.questions.replacement(
+                    record.id,
+                    usedIds,
+                    record.difficulty,
+                    category,
+                    seenIds,
+                )
                 if (replacement == null) {
                     _state.update { it.copy(error = "No alternate question is available.") }
                     return
@@ -722,7 +790,7 @@ class GameViewModel(
         val record = records.getOrNull(s.index)
         val difficulty = record?.difficulty ?: PrizeLadder.difficultyForIndex(s.index)
         val currentId = record?.id.orEmpty()
-        val replacement = container.questions.replacement(currentId, usedIds, difficulty)
+        val replacement = container.questions.replacement(currentId, usedIds, difficulty, category, seenIds)
         if (replacement != null && replacement.id != currentId) {
             usedIds += replacement.id
             records = records.toMutableList().also { it[s.index] = replacement }
@@ -783,6 +851,13 @@ class GameViewModel(
         }
     }
 
+    /** Leave now and keep the prize for every question already answered. */
+    fun quitKeepingReward() {
+        if (left || _state.value.phase == GamePhase.GAME_COMPLETE) return
+        if (_state.value.phase == GamePhase.LOADING || _state.value.phase == GamePhase.IDLE) return
+        finish(GameOutcome.WALKED_AWAY)
+    }
+
     fun abandon() {
         if (left || _state.value.phase == GamePhase.GAME_COMPLETE) return
         if (_state.value.walkAwayPrize != null && _state.value.phase in setOf(
@@ -828,9 +903,6 @@ class GameViewModel(
         viewModelScope.launch {
             val before = container.playerStore.current()
             container.playerStore.applyGameResult(result)
-            container.playerStore.update { p ->
-                p.copy(seenQuestionIds = (p.seenQuestionIds + usedIds).distinct().takeLast(200))
-            }
             val after = container.playerStore.current()
             if (after.level > before.level) {
                 container.analytics.track(AnalyticsEvents.LEVEL_UP, mapOf("level" to after.level.toString()))
@@ -869,9 +941,10 @@ class GameViewModel(
         private val mode: GameMode,
         private val container: AppContainer,
         private val stepBackOnTimeout: Boolean = false,
+        private val category: String? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            GameViewModel(mode, container, stepBackOnTimeout) as T
+            GameViewModel(mode, container, stepBackOnTimeout, category) as T
     }
 }

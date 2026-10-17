@@ -12,6 +12,6 @@ interface AdController {
 
 class NoOpAds : AdController {
     override fun preload() = Unit
-    override fun showRewarded(onReward: () -> Unit) = Unit
+    override fun showRewarded(onReward: () -> Unit) = onReward()
     override fun showInterstitialIfNaturalBreak() = Unit
 }
