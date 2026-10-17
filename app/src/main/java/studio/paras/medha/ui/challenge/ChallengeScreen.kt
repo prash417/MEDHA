@@ -75,6 +75,7 @@ import studio.paras.medha.core.ui.rememberAssetImage
 import studio.paras.medha.domain.model.AnswerLetter
 import studio.paras.medha.domain.model.AnswerOption
 import studio.paras.medha.domain.model.GameMode
+import studio.paras.medha.domain.model.GameOutcome
 import studio.paras.medha.domain.model.GamePhase
 import studio.paras.medha.ui.home.CurrencyHudChips
 import studio.paras.medha.ui.home.HudAssetButton
@@ -103,12 +104,15 @@ private data class ChallengeOpSpec(
     val available: Boolean,
     val onClick: () -> Unit,
     val repeatable: Boolean = false,
+    /** Coins the next use costs; 0 shows nothing. */
+    val cost: Int = 0,
 )
 
 private fun categoryBannerFile(id: String?): String = when (id) {
     "classic" -> "banner_classic.png"
     "quick" -> "banner_quick_play.png"
     "practice" -> "banner_practice.png"
+    "daily" -> "banner_classic.png"
     "sci" -> "Science.png"
     "his" -> "History.png"
     "spo" -> "Sports.png"
@@ -207,6 +211,17 @@ fun ChallengeScreen(
     xpAwards: List<studio.paras.medha.ui.game.XpAward> = emptyList(),
     startXp: Int = 0,
     resultPrize: String? = null,
+    hintCost: Int = 0,
+    fiftyCost: Int = 0,
+    switchCost: Int = 0,
+    extraTimeCost: Int = 0,
+    protectCost: Int = 0,
+    notice: String? = null,
+    onNoticeShown: () -> Unit = {},
+    errorText: String? = null,
+    onRetry: () -> Unit = {},
+    outcome: GameOutcome? = null,
+    coinsEarned: Int = 0,
 ) {
     BackHandler(onBack = onBack)
     val total = totalQuestions.coerceAtLeast(1)
@@ -217,7 +232,7 @@ fun ChallengeScreen(
     val slide = with(LocalDensity.current) { 36.dp.toPx() }
     Box(Modifier.fillMaxSize()) {
         Image(
-            bitmap = rememberAssetImage("Challenge your mind page.png"),
+            bitmap = rememberAssetImage("Challenge your mind page.png", maxSize = studio.paras.medha.core.ui.BackgroundMaxSize),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
             modifier = Modifier
@@ -264,12 +279,19 @@ fun ChallengeScreen(
                     available = loaded && phase == GamePhase.QUESTION_DISPLAY,
                     onClick = onHint,
                     repeatable = true,
+                    cost = hintCost,
                 ),
                 ChallengeOpSpec("Dare op2.png", "Dare", dareUsed, thinking, onDare),
-                ChallengeOpSpec("remove two op3.png", "Remove two", fiftyUsed, thinking, onFiftyFifty),
-                ChallengeOpSpec("Switch op4.png", "Switch", switchUsed, thinking, onSwitch),
-                ChallengeOpSpec("Extra Time op5.png", "Extra time", extraTimeUsed, thinking && timerTotal != null, onExtraTime),
-                ChallengeOpSpec("Protect op6.png", "Protect", protectUsed, thinking, onProtect),
+                ChallengeOpSpec(
+                    "remove two op3.png", "Remove two", fiftyUsed,
+                    thinking && hidden.isEmpty(), onFiftyFifty, repeatable = true, cost = fiftyCost,
+                ),
+                ChallengeOpSpec("Switch op4.png", "Switch", switchUsed, thinking, onSwitch, repeatable = true, cost = switchCost),
+                ChallengeOpSpec(
+                    "Extra Time op5.png", "Extra time", extraTimeUsed,
+                    thinking && timerTotal != null, onExtraTime, repeatable = true, cost = extraTimeCost,
+                ),
+                ChallengeOpSpec("Protect op6.png", "Protect", protectUsed, thinking, onProtect, repeatable = true, cost = protectCost),
             )
             val spent = remember {
                 ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
@@ -277,26 +299,39 @@ fun ChallengeScreen(
             ops.forEachIndexed { i, op ->
                 val spentLook = op.used && !op.repeatable
                 val clickable = if (op.repeatable) {
-                    op.available
+                    op.available && (op.label == "Hint" || canSpendLifeline)
                 } else {
                     !op.used && op.available && canSpendLifeline
                 }
-                Image(
-                    bitmap = rememberAssetImage(op.file, trim = true),
-                    contentDescription = op.label,
-                    contentScale = ContentScale.Fit,
-                    colorFilter = if (spentLook) spent else null,
-                    alpha = if (spentLook) 0.38f else 1f,
-                    modifier = Modifier
+                Box(
+                    Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .challengeArrive(entered, delayMs = 70 + i * 45, dx = -slide)
-                        .medhaClickable(
-                            enabled = clickable,
-                            role = Role.Button,
-                            onClick = op.onClick,
-                        ),
-                )
+                        .challengeArrive(entered, delayMs = 70 + i * 45, dx = -slide),
+                ) {
+                    Image(
+                        bitmap = rememberAssetImage(op.file, trim = true),
+                        contentDescription = if (op.cost > 0) "${op.label}, ${op.cost} coins" else op.label,
+                        contentScale = ContentScale.Fit,
+                        colorFilter = if (spentLook) spent else null,
+                        alpha = if (spentLook) 0.38f else if (!clickable && op.cost > 0) 0.6f else 1f,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .medhaClickable(
+                                enabled = clickable,
+                                role = Role.Button,
+                                onClick = op.onClick,
+                            ),
+                    )
+                    if (op.cost > 0 && !spentLook) {
+                        studio.paras.medha.core.ui.CoinPriceTag(
+                            amount = op.cost,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(end = 2.dp),
+                        )
+                    }
+                }
             }
         }
         Row(
@@ -404,6 +439,29 @@ fun ChallengeScreen(
         if (!hintText.isNullOrBlank()) {
             HintPopup(text = hintText, onDismiss = onDismissHint)
         }
+        if (!notice.isNullOrBlank()) {
+            LaunchedEffect(notice) {
+                delay(2_200)
+                onNoticeShown()
+            }
+            studio.paras.medha.core.ui.GoldToast(
+                text = notice,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 56.dp)
+                    .zIndex(9f),
+            )
+        }
+        if (!errorText.isNullOrBlank() && phase == GamePhase.IDLE) {
+            studio.paras.medha.core.ui.GoldDialog(
+                title = "Questions not ready",
+                body = errorText,
+                confirmLabel = "TRY AGAIN",
+                onConfirm = onRetry,
+                dismissLabel = "HOME",
+                onDismiss = onHome,
+            )
+        }
         if (dareOffer) {
             val skipLine = if (current + 2 > total) {
                 "Correct: skip one and win the game."
@@ -425,7 +483,14 @@ fun ChallengeScreen(
         }
         if (phase == GamePhase.GAME_COMPLETE) {
             TimeUpPopup(
-                title = "GAME OVER",
+                title = when (outcome) {
+                    GameOutcome.WON -> "YOU CLEARED THE LADDER!"
+                    GameOutcome.WALKED_AWAY -> "PRIZE SECURED"
+                    else -> "GAME OVER"
+                },
+                outcome = outcome,
+                prize = resultPrize,
+                coinsEarned = coinsEarned,
                 earnedXp = earnedXp,
                 answered = clearedRungs,
                 total = totalQuestions,
@@ -750,6 +815,9 @@ private fun DarePopup(
 @Composable
 private fun TimeUpPopup(
     title: String,
+    outcome: GameOutcome?,
+    prize: String?,
+    coinsEarned: Int,
     earnedXp: Int,
     answered: Int,
     total: Int,
@@ -780,6 +848,20 @@ private fun TimeUpPopup(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        if (outcome == GameOutcome.WON || coinsEarned > 0) {
+            studio.paras.medha.ui.three.Spinning3DModel(
+                asset = if (outcome == GameOutcome.WON) {
+                    studio.paras.medha.ui.three.Medha3D.Trophy
+                } else {
+                    studio.paras.medha.ui.three.Medha3D.Coin
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 24.dp)
+                    .fillMaxHeight(0.62f)
+                    .aspectRatio(0.8f),
+            )
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth(0.62f),
@@ -816,6 +898,27 @@ private fun TimeUpPopup(
                             .fillMaxWidth(0.52f),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        if (!prize.isNullOrBlank() && prize != "₹0") {
+                            Text(
+                                prize,
+                                color = Color(0xFFFFF1C2),
+                                fontFamily = Outfit,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        if (coinsEarned > 0) {
+                            Text(
+                                "+$coinsEarned COINS",
+                                color = Color(0xFFFFE08A),
+                                fontFamily = Outfit,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                letterSpacing = 1.sp,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                         Text(
                             "QUESTION  $answered  /  $total",
                             color = Color(0xFFFFE08A),

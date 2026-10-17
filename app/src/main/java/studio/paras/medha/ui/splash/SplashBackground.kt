@@ -20,7 +20,7 @@ fun SplashBackground(
             .background(SplashPalette.Ink),
     ) {
         Image(
-            bitmap = rememberAssetImage("Splash bg.png"),
+            bitmap = rememberAssetImage("Splash bg.png", maxSize = studio.paras.medha.core.ui.BackgroundMaxSize),
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
             modifier = Modifier.fillMaxSize(),

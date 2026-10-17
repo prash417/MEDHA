@@ -124,6 +124,8 @@ data class GameResult(
     val lastCorrectText: String?,
     val riskedLabel: String? = null,
     val sessionXp: Int = 0,
+    /** Coins this run pays out, so the game-over card can show them. */
+    val coinsEarned: Int = 0,
 )
 
 data class PlayerProfile(
@@ -156,6 +158,18 @@ data class PlayerProfile(
     val streakLastClaimAtMillis: Long = 0,
     val lastPlayEpochDay: Long = 0,
     val seenQuestionIds: List<String> = emptyList(),
+    /** Runs finished with every question cleared. */
+    val wins: Int = 0,
+    val dailyWins: Int = 0,
+    /** Epoch day of the last finished Daily Challenge, so its bonus pays once a day. */
+    val lastDailyDay: Long = 0,
+    val claimedMissions: List<String> = emptyList(),
+    /** Rewarded-ad counters, reset when [adDay] is not today. */
+    val adDay: Long = 0,
+    val adCoinsToday: Int = 0,
+    val adGemsToday: Int = 0,
+    val adCoinBonusDay: Long = 0,
+    val adGemBonusDay: Long = 0,
 ) {
     val accuracy: Int
         get() {

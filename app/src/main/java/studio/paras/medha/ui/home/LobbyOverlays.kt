@@ -57,7 +57,12 @@ import studio.paras.medha.R
 import studio.paras.medha.core.design.Outfit
 import studio.paras.medha.core.ui.medhaClickable
 import studio.paras.medha.core.ui.rememberAssetImage
+import studio.paras.medha.domain.engine.Achievements
 import studio.paras.medha.domain.engine.LoginStreak
+import studio.paras.medha.domain.engine.Missions
+import studio.paras.medha.core.ui.CoinPriceTag
+import studio.paras.medha.core.ui.GoldButton
+import studio.paras.medha.core.ui.GoldProgress
 import studio.paras.medha.domain.model.Achievement
 import studio.paras.medha.domain.model.PlayerProfile
 
@@ -130,7 +135,14 @@ fun GameSettingsPopup(
     }
 }
 
-data class ShopPack(val title: String, val detail: String, val grant: Int)
+/** One row in a shop popup: what it gives, its button label, and what happens on tap. */
+data class ShopRow(
+    val title: String,
+    val detail: String,
+    val action: String,
+    val enabled: Boolean,
+    val onClick: () -> Unit,
+)
 
 @Composable
 fun StreakPopup(
@@ -378,12 +390,9 @@ private fun StreakCountdown(
 @Composable
 fun CurrencyShopPopup(
     fileName: String,
-    watchTitle: String,
-    watchDetail: String,
-    onWatch: () -> Unit,
-    packs: List<ShopPack>,
-    onBuy: (Int) -> Unit,
+    rows: List<ShopRow>,
     onDismiss: () -> Unit,
+    notice: String? = null,
 ) {
     Box(
         Modifier
@@ -428,22 +437,23 @@ fun CurrencyShopPopup(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ShopPackRow(
-                    title = watchTitle,
-                    detail = watchDetail,
-                    action = "WATCH",
-                    enabled = true,
-                    onClick = onWatch,
-                )
-                packs.forEach { pack ->
+                rows.forEach { row ->
                     ShopPackRow(
-                        title = pack.title,
-                        detail = pack.detail,
-                        action = "BUY",
-                        enabled = true,
-                        onClick = { onBuy(pack.grant) },
+                        title = row.title,
+                        detail = row.detail,
+                        action = row.action,
+                        enabled = row.enabled,
+                        onClick = row.onClick,
                     )
                 }
+            }
+            if (!notice.isNullOrBlank()) {
+                studio.paras.medha.core.ui.GoldToast(
+                    text = notice,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = maxHeight * 0.06f),
+                )
             }
         }
     }
@@ -628,6 +638,8 @@ private fun OnOffToggle(on: Boolean, height: androidx.compose.ui.unit.Dp) {
 fun BoxScope.LobbyOverlayHost(
     overlay: LobbyOverlay?,
     catalog: LobbyCatalog,
+    profile: PlayerProfile,
+    onClaimMission: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (overlay == null) return
@@ -648,8 +660,8 @@ fun BoxScope.LobbyOverlayHost(
                 .padding(20.dp),
         ) {
             when (overlay) {
-                LobbyOverlay.MISSIONS -> MissionList(catalog)
-                LobbyOverlay.ACHIEVEMENTS -> AchievementList(catalog.achievements)
+                LobbyOverlay.MISSIONS -> MissionList(profile, onClaimMission)
+                LobbyOverlay.ACHIEVEMENTS -> AchievementList(Achievements.all(profile))
                 LobbyOverlay.INVENTORY -> SimpleNote("INVENTORY", "Seals, boosts and chamber kits land here with the live season.")
                 LobbyOverlay.FRIENDS -> SimpleNote("FRIENDS", "The chamber circle opens with the live season.")
                 LobbyOverlay.MESSAGES -> SimpleNote("MESSAGES", "No sealed notes waiting.")
@@ -660,28 +672,53 @@ fun BoxScope.LobbyOverlayHost(
 }
 
 @Composable
-private fun MissionList(catalog: LobbyCatalog) {
-    Column(Modifier.fillMaxSize()) {
+private fun MissionList(profile: PlayerProfile, onClaim: (String) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
         Header("MISSIONS")
-        catalog.missions.forEach { m ->
-            Column(Modifier.padding(top = 12.dp).fillMaxWidth()) {
-                Text(m.title.uppercase(), fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LobbyPalette.White)
-                Text(m.detail, fontFamily = Outfit, fontSize = 11.sp, color = LobbyPalette.Mute)
-                Box(
-                    Modifier
-                        .padding(top = 6.dp)
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(LobbyRound)
-                        .background(Color(0x33000000)),
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(m.progress.coerceIn(0.08f, 1f))
-                            .height(5.dp)
-                            .clip(LobbyRound)
-                            .background(LobbyPalette.Gold),
-                    )
+        Missions.current(profile).forEach { m ->
+            Row(
+                Modifier
+                    .padding(top = 12.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(m.title.uppercase(), fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LobbyPalette.White)
+                    Text(m.detail, fontFamily = Outfit, fontSize = 11.sp, color = LobbyPalette.Mute)
+                    Row(
+                        Modifier.padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        GoldProgress(m.progress, Modifier.weight(1f))
+                        Text(
+                            "${m.current}/${m.target}",
+                            fontFamily = Outfit,
+                            fontSize = 10.sp,
+                            color = LobbyPalette.Mute,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                when {
+                    m.finished -> Text("DONE", fontFamily = Outfit, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LobbyPalette.Gold)
+                    else -> Column(horizontalAlignment = Alignment.End) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (m.coins > 0) CoinPriceTag(m.coins)
+                            if (m.gems > 0) CoinPriceTag(m.gems, gem = true)
+                        }
+                        GoldButton(
+                            label = "CLAIM",
+                            onClick = { onClaim(m.id) },
+                            enabled = m.claimable,
+                            height = 28.dp,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         }

@@ -24,6 +24,8 @@ import studio.paras.medha.data.repository.leaksAnswer
 import studio.paras.medha.data.repository.toPlayable
 import studio.paras.medha.di.AppContainer
 import studio.paras.medha.domain.engine.LifelineLogic
+import studio.paras.medha.domain.engine.LifelineShop
+import studio.paras.medha.domain.engine.RunRewards
 import studio.paras.medha.domain.model.AnswerLetter
 import studio.paras.medha.domain.model.ExpertAdvice
 import studio.paras.medha.domain.model.GameMode
@@ -72,7 +74,22 @@ data class GameUiState(
     val dareArmed: Boolean = false,
     val protectArmed: Boolean = false,
     val lifelinesOnQuestion: Int = 0,
+    /** Player's coin balance, kept live so lifeline prices can be checked. */
+    val coins: Int = 0,
+    /** How many times each lifeline was used this run (first use is free). */
+    val lifelineUses: Map<LifelineKind, Int> = emptyMap(),
+    val hintsUsed: Int = 0,
+    /** Set when the run ends, so the game-over card can say how it ended. */
+    val outcome: GameOutcome? = null,
+    val coinsEarned: Int = 0,
+    /** Short message such as "Not enough coins". Cleared after a moment by the screen. */
+    val notice: String? = null,
 ) {
+    /** Coins the next use of [kind] costs; 0 while it is still free. */
+    fun lifelineCost(kind: LifelineKind): Int = LifelineShop.nextCost(kind, lifelineUses[kind] ?: 0)
+    val hintCost: Int get() = LifelineShop.nextHintCost(hintsUsed)
+    fun canAfford(cost: Int): Boolean = cost <= 0 || coins >= cost
+
     val canAnswer: Boolean get() = phase == GamePhase.QUESTION_DISPLAY
     /** Question text and all four options are on screen, and the clock has started when this question is timed. */
     val answersOpen: Boolean
@@ -99,6 +116,7 @@ class GameViewModel(
         private const val DareSkip = 1
         private const val DareBack = 3
         private const val DareSeconds = 15
+        const val DailyCategory = "daily"
     }
 
     private val _state = MutableStateFlow(GameUiState(mode = mode, phase = GamePhase.LOADING, total = mode.questionCount))
@@ -118,7 +136,18 @@ class GameViewModel(
     private var sessionOpen = false
     private var runId = 0
 
+    @Volatile private var latestProfile: studio.paras.medha.domain.model.PlayerProfile? = null
+
+    /** The Daily Challenge draws from every category. */
+    private val pool: String? = category?.takeUnless { it.isBlank() || it == DailyCategory }
+
     init {
+        viewModelScope.launch {
+            container.playerStore.profile.collect { profile ->
+                latestProfile = profile
+                _state.update { it.copy(coins = profile.coins) }
+            }
+        }
         start()
     }
 
@@ -145,10 +174,10 @@ class GameViewModel(
                 if (mode == GameMode.DAILY) AnalyticsEvents.DAILY_STARTED else AnalyticsEvents.GAME_STARTED,
                 mapOf("mode" to mode.id),
             )
-            val pool = category ?: container.playCategory
+            val drawFrom = pool ?: container.playCategory?.takeUnless { it == DailyCategory }
             seenIds = profile.seenQuestionIds.toMutableSet()
             shownIds.clear()
-            val result = container.questions.loadSession(mode, profile.seenQuestionIds, pool)
+            val result = container.questions.loadSession(mode, profile.seenQuestionIds, drawFrom)
             result.fold(
                 onSuccess = { draw ->
                     if (run != runId) return@fold
@@ -172,6 +201,7 @@ class GameViewModel(
                             total = draw.questions.size,
                             reducedMotion = profile.reducedMotion,
                             startXp = profile.xp,
+                            coins = profile.coins,
                         )
                     }
                 },
@@ -208,7 +238,7 @@ class GameViewModel(
             current.id,
             usedIds,
             PrizeLadder.difficultyForIndex(index),
-            category,
+            pool,
             seenIds,
         ) ?: return current
         if (next.id == current.id) return current
@@ -611,6 +641,12 @@ class GameViewModel(
             hintsShown.clear()
             pool
         }
+        val cost = s.hintCost
+        if (!s.canAfford(cost)) {
+            _state.update { it.copy(notice = "Not enough coins — a hint costs $cost") }
+            return
+        }
+        spendCoins(cost)
         val one = source.random()
         hintsShown += one
         container.audio.play(Sfx.LIFELINE)
@@ -618,6 +654,7 @@ class GameViewModel(
         _state.update {
             it.copy(
                 hintText = one,
+                hintsUsed = it.hintsUsed + 1,
                 lifelinesOnQuestion = if (it.lifelinesOnQuestion == 0) 1 else it.lifelinesOnQuestion,
             )
         }
@@ -639,10 +676,20 @@ class GameViewModel(
             LifelineKind.PROTECT,
         ) && thinking
         if (!s.canLifeline && !extraReady && !lateReady) return
-        if (kind in s.usedLifelines) return
+        if (kind in s.usedLifelines && !LifelineShop.repeatable(kind)) return
         if (kind == LifelineKind.EXTRA_TIME && s.timerTotal == null) return
+        // Stacking the same lifeline on one question would give the answer away.
+        if (kind == LifelineKind.FIFTY_FIFTY && s.hidden.isNotEmpty()) return
+        if (kind == LifelineKind.PROTECT && s.protectArmed) return
         if (!s.canSpendLifeline) return
         val record = records.getOrNull(s.index) ?: return
+        val cost = s.lifelineCost(kind)
+        if (!s.canAfford(cost)) {
+            _state.update { it.copy(notice = "Not enough coins — this costs $cost") }
+            return
+        }
+        spendCoins(cost)
+        _state.update { it.copy(lifelineUses = it.lifelineUses + (kind to ((it.lifelineUses[kind] ?: 0) + 1))) }
         container.audio.play(Sfx.LIFELINE)
         container.analytics.track(AnalyticsEvents.LIFELINE_USED, mapOf("kind" to kind.name))
         when (kind) {
@@ -672,11 +719,17 @@ class GameViewModel(
                     record.id,
                     usedIds,
                     record.difficulty,
-                    category,
+                    pool,
                     seenIds,
                 )
                 if (replacement == null) {
-                    _state.update { it.copy(error = "No alternate question is available.") }
+                    if (cost > 0) spendCoins(-cost)
+                    _state.update {
+                        it.copy(
+                            notice = "No other question is available right now.",
+                            lifelineUses = it.lifelineUses + (kind to ((it.lifelineUses[kind] ?: 1) - 1)),
+                        )
+                    }
                     return
                 }
                 usedIds += replacement.id
@@ -790,7 +843,7 @@ class GameViewModel(
         val record = records.getOrNull(s.index)
         val difficulty = record?.difficulty ?: PrizeLadder.difficultyForIndex(s.index)
         val currentId = record?.id.orEmpty()
-        val replacement = container.questions.replacement(currentId, usedIds, difficulty, category, seenIds)
+        val replacement = container.questions.replacement(currentId, usedIds, difficulty, pool, seenIds)
         if (replacement != null && replacement.id != currentId) {
             usedIds += replacement.id
             records = records.toMutableList().also { it[s.index] = replacement }
@@ -828,6 +881,18 @@ class GameViewModel(
         if (clockLive && s.phase == GamePhase.QUESTION_DISPLAY) {
             cueTimerMusic(secs ?: 0)
         }
+    }
+
+    private fun spendCoins(amount: Int) {
+        if (amount == 0) return
+        _state.update { it.copy(coins = (it.coins - amount).coerceAtLeast(0)) }
+        viewModelScope.launch {
+            container.playerStore.update { it.copy(coins = (it.coins - amount).coerceAtLeast(0)) }
+        }
+    }
+
+    fun clearNotice() {
+        _state.update { it.copy(notice = null) }
     }
 
     fun toggleLadder() {
@@ -883,6 +948,14 @@ class GameViewModel(
             GameOutcome.WALKED_AWAY -> PrizeLadder.lastCleared(s.correctCount, mode)
             GameOutcome.DROPPED -> PrizeLadder.guaranteed(s.correctCount, mode)
         }
+        val today = java.time.LocalDate.now().toEpochDay()
+        val coinsEarned = RunRewards.coins(
+            mode = mode,
+            prize = prize?.amount ?: 0L,
+            completed = outcome == GameOutcome.WON,
+            profile = latestProfile ?: studio.paras.medha.domain.model.PlayerProfile(),
+            today = today,
+        )
         val result = GameResult(
             mode = mode,
             reachedIndex = s.index,
@@ -898,6 +971,7 @@ class GameViewModel(
                 s.question?.options?.find { it.letter == letter }?.text
             },
             sessionXp = if (countsXp()) s.earnedXp else 0,
+            coinsEarned = coinsEarned,
         )
         container.lastResult = result
         viewModelScope.launch {
@@ -928,6 +1002,8 @@ class GameViewModel(
             it.copy(
                 phase = GamePhase.GAME_COMPLETE,
                 resultPrize = prize?.label ?: "₹0",
+                outcome = outcome,
+                coinsEarned = coinsEarned,
             )
         }
     }

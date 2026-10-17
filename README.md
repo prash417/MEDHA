@@ -43,3 +43,31 @@ The package structure, `QuestionRepository`, `firestore.rules`, analytics façad
 ## Originality
 
 MEDHA uses an original mark, palette (ink / teal / copper), type (Cormorant + Outfit), UI language and internally generated audio. It does not reproduce KBC branding, music, layouts or catchphrases.
+
+
+## October 2026 update — what changed
+
+**Game**
+- Every mode (Classic, Quick Play, Practice and the new **Daily Challenge** button on Home) now plays on the Challenge screen.
+- The game-over card says how the run ended (won / prize secured / game over), shows the prize and coins earned, and spins a **3D trophy** (win) or **3D coin**.
+- If questions fail to load, a "Try again / Home" dialog appears instead of a stuck screen.
+- Settings in the left menu now opens the settings popup.
+
+**Economy**
+- Each lifeline is free once per run; after that it costs coins (prices in `domain/engine/Economy.kt` → `LifelineShop`). Hints: 3 free per run, then 50 coins.
+- Coin and diamond shops are rewarded ads only (with daily limits) plus a 5 diamonds → 1,000 coins trade.
+- Finished runs pay coins (Practice pays none); the Daily Challenge pays a 500-coin bonus once a day.
+
+**Missions, achievements, profile, leaderboard**
+- Missions are real, tiered and claimable (`Missions` in `Economy.kt`); achievements read real stats.
+- First launch asks for the player's name; Profile lets you change name and avatar.
+- Leaderboard is online (Firestore `leaderboard` collection, top 50 by XP or best prize).
+
+**Size and speed**
+- Host-voice clips download on demand from Firebase Storage (`voice/<hash>.mp3`), so `assets/offline/voice-packs.zip` (778 MB) is no longer needed. **Move it out of `app/src/main/assets/offline/`** (for example to `tools/`), otherwise it is still packed into the app.
+- Asset PNGs are shrunk while loading and cached once, which cuts memory a lot on cheap phones.
+
+### Before you publish
+1. **AdMob:** in `app/build.gradle.kts` replace the two TEST ids (`admobAppId`, `ADMOB_REWARDED_ID`) with your own from admob.google.com.
+2. **Firestore rules:** run `firebase deploy --only firestore:rules` (the leaderboard rule was tightened).
+3. **3D models:** `python tools/models/make_models.py` rebuilds `assets/models/coin.glb` and `trophy.glb` if you change their shapes.

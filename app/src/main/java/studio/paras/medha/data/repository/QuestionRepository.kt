@@ -216,13 +216,10 @@ interface PlayerRepository {
 
 fun PlayerProfile.withResult(result: GameResult): PlayerProfile {
     val today = java.time.LocalDate.now().toEpochDay()
-    val streak = when {
-        lastPlayEpochDay == today -> dailyStreak
-        lastPlayEpochDay == today - 1 -> dailyStreak + 1
-        else -> 1
-    }
     val gainedXp = result.sessionXp
     val newXp = xp + gainedXp
+    val dailyWin = result.mode == studio.paras.medha.domain.model.GameMode.DAILY && result.completed
+    // The login streak (LoginStreak) owns dailyStreak, so a finished game does not touch it.
     return copy(
         gamesPlayed = gamesPlayed + 1,
         bestPrize = maxOf(bestPrize, result.prizeWon),
@@ -230,8 +227,10 @@ fun PlayerProfile.withResult(result: GameResult): PlayerProfile {
         wrongAnswers = wrongAnswers + (result.totalAnswered - result.correctCount).coerceAtLeast(0),
         xp = newXp,
         level = XpRules.levelFor(newXp),
-        coins = coins + XpRules.coinsFor(result.prizeWon, result.completed),
-        dailyStreak = streak,
+        coins = coins + result.coinsEarned,
+        wins = wins + if (result.completed) 1 else 0,
+        dailyWins = dailyWins + if (dailyWin && lastDailyDay != today) 1 else 0,
+        lastDailyDay = if (dailyWin) today else lastDailyDay,
         lastPlayEpochDay = today,
     )
 }

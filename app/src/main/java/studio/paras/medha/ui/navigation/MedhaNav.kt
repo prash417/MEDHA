@@ -34,6 +34,8 @@ import studio.paras.medha.di.AppContainer
 import studio.paras.medha.core.ui.LocalTapSound
 import studio.paras.medha.core.ui.ProvideHudControls
 import studio.paras.medha.domain.engine.LoginStreak
+import studio.paras.medha.domain.engine.Missions
+import studio.paras.medha.ui.profile.NamePrompt
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.GameOutcome
 import studio.paras.medha.domain.model.GamePhase
@@ -49,7 +51,10 @@ import studio.paras.medha.ui.profile.ProfileScreen
 import studio.paras.medha.ui.result.ResultScreen
 import studio.paras.medha.ui.home.ArtFramePopup
 import studio.paras.medha.ui.home.CurrencyShopPopup
-import studio.paras.medha.ui.home.ShopPack
+import studio.paras.medha.ui.home.ShopRow
+import studio.paras.medha.domain.engine.AdLedger
+import studio.paras.medha.domain.engine.AdReward
+import studio.paras.medha.domain.engine.GemExchange
 import studio.paras.medha.ui.home.StreakPopup
 import java.time.Instant
 import java.time.LocalDate
@@ -108,6 +113,13 @@ fun MedhaNav(
     var settingsOpen by remember { mutableStateOf(false) }
     var streakOpen by remember { mutableStateOf(false) }
     var frameFile by remember { mutableStateOf<String?>(null) }
+    var shopNotice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(shopNotice) {
+        if (shopNotice != null) {
+            delay(2_400)
+            shopNotice = null
+        }
+    }
     val openSettings = { settingsOpen = true }
     val openCoins = { frameFile = "coins.png" }
     val openGems = { frameFile = "Dimonds.png" }
@@ -228,13 +240,9 @@ fun MedhaNav(
                         profile = profile,
                         pingMs = pingMs,
                         onPlay = { mode, _ ->
-                            container.playMode = mode
-                            container.awardXp = mode != GameMode.PRACTICE
-                            if (mode == GameMode.CLASSIC || mode == GameMode.QUICK || mode == GameMode.PRACTICE) {
-                                openChallenge(mode.id, mode, awardXp = mode != GameMode.PRACTICE)
-                            } else {
-                                nav.navigate(Routes.game(mode))
-                            }
+                            // Every mode, Daily included, plays on the Challenge screen.
+                            val pool = if (mode == GameMode.DAILY) GameViewModel.DailyCategory else mode.id
+                            openChallenge(pool, mode, awardXp = mode != GameMode.PRACTICE)
                         },
                         onChallenge = { category ->
                             openChallenge(category, GameMode.CLASSIC, awardXp = true)
@@ -253,6 +261,12 @@ fun MedhaNav(
                             }
                         },
                         streakMask = LoginStreak.week(profile, LocalDate.now().toEpochDay()).mask,
+                        onClaimMission = { id ->
+                            scope.launch {
+                                container.playerStore.update { Missions.claim(it, id) ?: it }
+                                container.audio.play(Sfx.PRIZE)
+                            }
+                        },
                     )
                 }
                 composable(
@@ -282,7 +296,8 @@ fun MedhaNav(
                         },
                         onReplay = {
                             val mode = container.lastResult?.mode ?: GameMode.CLASSIC
-                            nav.navigate(Routes.game(mode)) { popUpTo(Routes.HOME) }
+                            val pool = if (mode == GameMode.DAILY) GameViewModel.DailyCategory else mode.id
+                            openChallenge(pool, mode, awardXp = mode != GameMode.PRACTICE)
                         },
                     )
                 }
@@ -296,10 +311,19 @@ fun MedhaNav(
                     )
                 }
                 composable(Routes.PROFILE) {
-                    ProfileScreen(profile = profile, onBack = { nav.popBackStack() })
+                    ProfileScreen(
+                        profile = profile,
+                        onBack = { nav.popBackStack() },
+                        onRename = { name ->
+                            scope.launch { container.playerStore.update { it.copy(displayName = name) } }
+                        },
+                        onAvatar = { id ->
+                            scope.launch { container.playerStore.update { it.copy(avatarId = id) } }
+                        },
+                    )
                 }
                 composable(Routes.LEADERBOARD) {
-                    LeaderboardScreen(profile = profile, onBack = { nav.popBackStack() })
+                    LeaderboardScreen(profile = profile, cloud = container.cloud, onBack = { nav.popBackStack() })
                 }
                 composable(
                     Routes.CHALLENGE,
@@ -322,11 +346,6 @@ fun MedhaNav(
                     val play by vm.state.collectAsStateWithLifecycle()
                     LaunchedEffect(play.phase) {
                         if (play.phase == GamePhase.SEAT_INTRO) vm.takeTheSeat()
-                        if (play.phase == GamePhase.GAME_COMPLETE &&
-                            container.lastResult?.outcome == GameOutcome.WON
-                        ) {
-                            nav.navigate(Routes.RESULT) { popUpTo(Routes.HOME) }
-                        }
                     }
                     ChallengeScreen(
                         pingMs = pingMs,
@@ -390,6 +409,17 @@ fun MedhaNav(
                         xpAwards = play.xpAwards,
                         startXp = play.startXp,
                         resultPrize = play.resultPrize,
+                        hintCost = play.hintCost,
+                        fiftyCost = play.lifelineCost(LifelineKind.FIFTY_FIFTY),
+                        switchCost = play.lifelineCost(LifelineKind.SWITCH),
+                        extraTimeCost = play.lifelineCost(LifelineKind.EXTRA_TIME),
+                        protectCost = play.lifelineCost(LifelineKind.PROTECT),
+                        notice = play.notice,
+                        onNoticeShown = vm::clearNotice,
+                        errorText = play.error,
+                        onRetry = vm::restartFresh,
+                        outcome = play.outcome,
+                        coinsEarned = play.coinsEarned,
                     )
                 }
             }
@@ -419,6 +449,20 @@ fun MedhaNav(
                     }
                 }
             }
+        }
+        if (bootDone && !overlay && !profile.onboardingComplete) {
+            NamePrompt(
+                current = profile.displayName,
+                title = "Welcome to MEDHA",
+                onSave = { name ->
+                    scope.launch {
+                        container.playerStore.update { it.copy(displayName = name, onboardingComplete = true) }
+                    }
+                },
+                onDismiss = {
+                    scope.launch { container.playerStore.update { it.copy(onboardingComplete = true) } }
+                },
+            )
         }
         if (settingsOpen) {
             GameSettingsPopup(
@@ -458,52 +502,65 @@ fun MedhaNav(
         }
         frameFile?.let { file ->
             when (file) {
-                "coins.png" -> CurrencyShopPopup(
-                    fileName = file,
-                    watchTitle = "Watch ad",
-                    watchDetail = "10 coins",
-                    onWatch = {
-                        container.ads.showRewarded {
+                "coins.png", "Dimonds.png" -> {
+                    val today = LocalDate.now().toEpochDay()
+                    val gemShop = file == "Dimonds.png"
+                    val rewards = if (gemShop) {
+                        listOf(AdReward.GEMS, AdReward.GEM_BONUS)
+                    } else {
+                        listOf(AdReward.COINS, AdReward.COIN_BONUS)
+                    }
+                    val adRows = rewards.map { reward ->
+                        val left = AdLedger.left(profile, reward, today)
+                        ShopRow(
+                            title = if (reward.coins > 0) "${reward.coins} Coins" else "${reward.gems} Diamonds",
+                            detail = "${reward.title}  ·  $left left today",
+                            action = if (left > 0) "WATCH" else "DONE",
+                            enabled = left > 0,
+                            onClick = {
+                                container.ads.showRewarded(
+                                    onReward = {
+                                        scope.launch {
+                                            container.playerStore.update {
+                                                AdLedger.grant(it, reward, LocalDate.now().toEpochDay()) ?: it
+                                            }
+                                            container.audio.play(Sfx.PRIZE)
+                                            shopNotice = if (reward.coins > 0) {
+                                                "+${reward.coins} coins added"
+                                            } else {
+                                                "+${reward.gems} diamonds added"
+                                            }
+                                        }
+                                    },
+                                    onUnavailable = {
+                                        shopNotice = "No ad ready yet. Check your internet and try again."
+                                    },
+                                )
+                            },
+                        )
+                    }
+                    val tradeRow = ShopRow(
+                        title = "${GemExchange.Coins} Coins",
+                        detail = "Trade ${GemExchange.Gems} diamonds",
+                        action = "TRADE",
+                        enabled = profile.gems >= GemExchange.Gems,
+                        onClick = {
                             scope.launch {
-                                container.playerStore.update { it.copy(coins = it.coins + 10) }
+                                container.playerStore.update { GemExchange.trade(it) ?: it }
+                                shopNotice = "+${GemExchange.Coins} coins added"
                             }
-                        }
-                    },
-                    packs = listOf(
-                        ShopPack("2,500", "Coins", 2_500),
-                        ShopPack("12,000", "Coins", 12_000),
-                        ShopPack("60,000", "Coins", 60_000),
-                    ),
-                    onBuy = { amount ->
-                        scope.launch {
-                            container.playerStore.update { it.copy(coins = it.coins + amount) }
-                        }
-                    },
-                    onDismiss = { frameFile = null },
-                )
-                "Dimonds.png" -> CurrencyShopPopup(
-                    fileName = file,
-                    watchTitle = "Watch ad",
-                    watchDetail = "1 diamond",
-                    onWatch = {
-                        container.ads.showRewarded {
-                            scope.launch {
-                                container.playerStore.update { it.copy(gems = it.gems + 1) }
-                            }
-                        }
-                    },
-                    packs = listOf(
-                        ShopPack("80", "Diamonds", 80),
-                        ShopPack("450", "Diamonds", 450),
-                        ShopPack("2,000", "Diamonds", 2_000),
-                    ),
-                    onBuy = { amount ->
-                        scope.launch {
-                            container.playerStore.update { it.copy(gems = it.gems + amount) }
-                        }
-                    },
-                    onDismiss = { frameFile = null },
-                )
+                        },
+                    )
+                    CurrencyShopPopup(
+                        fileName = file,
+                        rows = if (gemShop) adRows else adRows + tradeRow,
+                        notice = shopNotice,
+                        onDismiss = {
+                            frameFile = null
+                            shopNotice = null
+                        },
+                    )
+                }
                 else -> ArtFramePopup(fileName = file, onDismiss = { frameFile = null })
             }
         }

@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        (application as MedhaApplication).container.ads.attach(null)
         backGuard.dismiss()
         super.onPause()
         (application as MedhaApplication).container.audio.pauseMusic()
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, swipeBack.callback)
         swipeBack.callback.isEnabled = swipeBack.isHome()
         applyWindowChrome()
+        (application as MedhaApplication).container.ads.attach(this)
         (application as MedhaApplication).container.audio.resumeMusic()
     }
 

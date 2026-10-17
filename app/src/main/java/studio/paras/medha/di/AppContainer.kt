@@ -1,8 +1,9 @@
 package studio.paras.medha.di
 
 import android.content.Context
+import studio.paras.medha.BuildConfig
 import studio.paras.medha.core.ads.AdController
-import studio.paras.medha.core.ads.NoOpAds
+import studio.paras.medha.core.ads.AdMobAds
 import studio.paras.medha.core.analytics.LogAnalytics
 import studio.paras.medha.core.analytics.MedhaAnalytics
 import studio.paras.medha.core.audio.MedhaAudio
@@ -27,7 +28,7 @@ class AppContainer(context: Context) {
         java.io.File(context.filesDir, "question-bank.json"),
     )
     val analytics: MedhaAnalytics = LogAnalytics()
-    val ads: AdController = NoOpAds()
+    val ads: AdController = AdMobAds(context, BuildConfig.ADMOB_REWARDED_ID)
     val voice: VoiceAnnouncer = MedhaVoice(
         context,
         audio,

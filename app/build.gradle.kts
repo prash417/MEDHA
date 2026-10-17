@@ -17,6 +17,10 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        // AdMob ids. These are Google's public TEST ids and always show a test ad.
+        // Before you publish, replace both with the ids from your AdMob account.
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+        buildConfigField("String", "ADMOB_REWARDED_ID", "\"ca-app-pub-3940256099942544/5224354917\"")
     }
 
     buildTypes {
@@ -83,5 +87,9 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.functions)
     implementation(libs.firebase.storage)
+    implementation(libs.play.services.ads)
+    // 3D coin and trophy. 4.18.x is the newest SceneView built with Kotlin 2.3 and compileSdk 36,
+    // which this project uses; newer SceneView needs Kotlin 2.4 and compileSdk 37.
+    implementation(libs.sceneview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

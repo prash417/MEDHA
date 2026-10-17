@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import studio.paras.medha.R
 import androidx.compose.ui.res.painterResource
+import studio.paras.medha.domain.engine.Missions
 import studio.paras.medha.domain.model.GameMode
 import studio.paras.medha.domain.model.PlayerProfile
 
@@ -46,6 +47,7 @@ fun HomeScreen(
     onLeaderboard: () -> Unit,
     onStreak: () -> Unit = {},
     streakMask: Int = 0,
+    onClaimMission: (String) -> Unit = {},
     vm: HomeViewModel = viewModel(),
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
@@ -85,15 +87,27 @@ fun HomeScreen(
                             when (dest) {
                                 LobbyDest.LEADERBOARD -> onLeaderboard()
                                 LobbyDest.PROFILE -> onProfile()
+                                LobbyDest.SETTINGS -> onSettings()
                                 LobbyDest.HOME -> vm.select(LobbyDest.HOME)
                                 else -> vm.select(dest)
                             }
                         },
                     )
-                    ModePlayList(
-                        onPlay = { mode -> onPlay(mode, ui.selectedCategory) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        DailyChallengeButton(
+                            doneToday = profile.lastDailyDay == java.time.LocalDate.now().toEpochDay(),
+                            missionsReady = Missions.claimableCount(profile),
+                            onPlay = { onPlay(GameMode.DAILY, null) },
+                            onMissions = { vm.select(LobbyDest.MISSIONS) },
+                            modifier = Modifier.padding(end = 16.dp, bottom = 6.dp),
+                        )
+                        ModePlayList(
+                            onPlay = { mode -> onPlay(mode, ui.selectedCategory) },
+                        )
+                    }
                 }
             }
             CategoriesBar(
@@ -127,6 +141,8 @@ fun HomeScreen(
         LobbyOverlayHost(
             overlay = ui.overlay,
             catalog = ui.catalog,
+            profile = profile,
+            onClaimMission = onClaimMission,
             onDismiss = vm::dismissOverlay,
         )
         AnimatedVisibility(

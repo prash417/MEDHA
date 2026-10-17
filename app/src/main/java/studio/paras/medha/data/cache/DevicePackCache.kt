@@ -134,7 +134,31 @@ class DevicePackCache(context: Context) {
 
     suspend fun sync(onProgress: (line: String, detail: String, fraction: Float) -> Unit) {
         if (!questionsCurrent()) copyQuestions(onProgress)
-        if (!voiceCurrent()) unpackVoice(onProgress)
+        if (!voiceCurrent()) {
+            if (hasBundledVoice()) unpackVoice(onProgress) else fetchSharedVoice(onProgress)
+        }
+    }
+
+    /** The 778 MB voice zip no longer has to ship inside the app; without it, clips come from the cloud. */
+    private fun hasBundledVoice(): Boolean =
+        runCatching { app.assets.list("offline")?.contains("voice-packs.zip") == true }.getOrDefault(false)
+
+    /** Downloads the short lines every game uses ("Question 1.", "Answer locked." ...). */
+    private suspend fun fetchSharedVoice(onProgress: (String, String, Float) -> Unit) {
+        val lines = studio.paras.medha.data.cloud.HostBoard.sharedLines()
+        val api = studio.paras.medha.data.cloud.HostVoiceApi(app)
+        // Never hold the splash screen for long; missing lines download later during play.
+        val got = kotlinx.coroutines.withTimeoutOrNull(25_000L) {
+            api.prefetchLines(lines) { done, total ->
+                onProgress(
+                    "Downloading host voice",
+                    "$done/$total",
+                    0.40f + 0.56f * (done.toFloat() / total.coerceAtLeast(1)),
+                )
+            }
+        } ?: 0
+        // Only mark done when everything arrived, so a bad connection retries next launch.
+        if (got == lines.size) File(voiceDir, ".unpacked").writeText(VOICE_VERSION)
     }
 
     private fun copyQuestions(onProgress: (String, String, Float) -> Unit) {

@@ -51,6 +51,15 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         val streakLastClaimAt = longPreferencesKey("streak_last_claim_at")
         val lastDay = longPreferencesKey("last_day")
         val seen = stringPreferencesKey("seen")
+        val wins = intPreferencesKey("wins")
+        val dailyWins = intPreferencesKey("daily_wins")
+        val lastDailyDay = longPreferencesKey("last_daily_day")
+        val claimedMissions = stringPreferencesKey("claimed_missions")
+        val adDay = longPreferencesKey("ad_day")
+        val adCoinsToday = intPreferencesKey("ad_coins_today")
+        val adGemsToday = intPreferencesKey("ad_gems_today")
+        val adCoinBonusDay = longPreferencesKey("ad_coin_bonus_day")
+        val adGemBonusDay = longPreferencesKey("ad_gem_bonus_day")
     }
 
     override val profile: Flow<PlayerProfile> = context.dataStore.data.map { it.toProfile() }
@@ -68,10 +77,6 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         update { it.withResult(result) }
     }
 
-    fun rememberQuestions(ids: List<String>) {
-        // applied with update from the game session
-    }
-
     private fun Preferences.toProfile(): PlayerProfile {
         val lang = AppLanguage.entries.find { it.code == this[Keys.language] } ?: AppLanguage.ENGLISH
         val seen = this[Keys.seen].orEmpty().split(',').filter { it.isNotBlank() }
@@ -79,7 +84,7 @@ class PlayerStore(private val context: Context) : PlayerRepository {
             displayName = this[Keys.name]?.ifBlank { "Guest" } ?: "Guest",
             avatarId = this[Keys.avatar] ?: 0,
             language = lang,
-            onboardingComplete = true,
+            onboardingComplete = this[Keys.onboarded] ?: false,
             musicEnabled = this[Keys.music] ?: true,
             timerMusicEnabled = this[Keys.timerMusic] ?: true,
             sfxEnabled = this[Keys.sfx] ?: true,
@@ -105,6 +110,15 @@ class PlayerStore(private val context: Context) : PlayerRepository {
             streakLastClaimAtMillis = this[Keys.streakLastClaimAt] ?: 0L,
             lastPlayEpochDay = this[Keys.lastDay] ?: 0L,
             seenQuestionIds = seen,
+            wins = this[Keys.wins] ?: 0,
+            dailyWins = this[Keys.dailyWins] ?: 0,
+            lastDailyDay = this[Keys.lastDailyDay] ?: 0L,
+            claimedMissions = this[Keys.claimedMissions].orEmpty().split(',').filter { it.isNotBlank() },
+            adDay = this[Keys.adDay] ?: 0L,
+            adCoinsToday = this[Keys.adCoinsToday] ?: 0,
+            adGemsToday = this[Keys.adGemsToday] ?: 0,
+            adCoinBonusDay = this[Keys.adCoinBonusDay] ?: 0L,
+            adGemBonusDay = this[Keys.adGemBonusDay] ?: 0L,
         )
     }
 
@@ -137,6 +151,20 @@ class PlayerStore(private val context: Context) : PlayerRepository {
         this[Keys.streakBroken] = p.streakBroken
         this[Keys.streakLastClaimAt] = p.streakLastClaimAtMillis
         this[Keys.lastDay] = p.lastPlayEpochDay
-        this[Keys.seen] = p.seenQuestionIds.joinToString(",")
+        this[Keys.seen] = p.seenQuestionIds.takeLast(MaxSeenIds).joinToString(",")
+        this[Keys.wins] = p.wins
+        this[Keys.dailyWins] = p.dailyWins
+        this[Keys.lastDailyDay] = p.lastDailyDay
+        this[Keys.claimedMissions] = p.claimedMissions.joinToString(",")
+        this[Keys.adDay] = p.adDay
+        this[Keys.adCoinsToday] = p.adCoinsToday
+        this[Keys.adGemsToday] = p.adGemsToday
+        this[Keys.adCoinBonusDay] = p.adCoinBonusDay
+        this[Keys.adGemBonusDay] = p.adGemBonusDay
+    }
+
+    private companion object {
+        /** Keeps the seen-question list from growing forever in preferences. */
+        const val MaxSeenIds = 4_000
     }
 }
